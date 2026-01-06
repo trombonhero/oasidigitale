@@ -1,0 +1,300 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Wind, Eraser, Activity, RefreshCw, Hand, Sparkles } from 'lucide-react';
+
+// --- COMPONENTI INTERNI ---
+
+// 1. MODALITÀ FLUSSO (SCROLL INFINITO)
+// Questa modalità risponde alla teoria che lo scrolling è piacevole di per sé.
+// Genera particelle e cambia colore in base alla velocità dello scroll.
+const FlowMode = () => {
+  const [scrollSpeed, setScrollSpeed] = useState(0);
+  const [hue, setHue] = useState(200);
+  const containerRef = useRef(null);
+  const lastScrollY = useRef(0);
+  const scrollTimeout = useRef(null);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      const speed = Math.abs(currentScrollY - lastScrollY.current);
+      setScrollSpeed(Math.min(speed, 50)); // Cap speed for visuals
+      
+      // Cambia colore lentamente mentre scrolli
+      setHue((prev) => (prev + 0.5) % 360);
+      
+      lastScrollY.current = currentScrollY;
+
+      // Reset speed quando ci si ferma
+      if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+      scrollTimeout.current = setTimeout(() => {
+        setScrollSpeed(0);
+      }, 100);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+    };
+  }, []);
+
+  // Creiamo un contenuto "fittizio" molto alto per permettere lo scroll
+  return (
+    <div className="min-h-[500vh] w-full transition-colors duration-500 ease-out"
+         style={{ backgroundColor: `hsl(${hue}, 70%, ${90 - (scrollSpeed * 0.5)}%)` }}>
+      
+      <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
+        <div 
+          className="rounded-full blur-3xl transition-all duration-300 opacity-60 mix-blend-multiply"
+          style={{ 
+            width: `${200 + scrollSpeed * 10}px`, 
+            height: `${200 + scrollSpeed * 10}px`,
+            backgroundColor: `hsl(${(hue + 180) % 360}, 80%, 60%)`,
+            transform: `scale(${1 + scrollSpeed / 50})`
+          }}
+        />
+      </div>
+
+      <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none opacity-50 mix-blend-overlay">
+        <Wind size={48 + scrollSpeed} className="mx-auto mb-4 text-slate-800 transition-all duration-300" />
+        <p className="text-xl font-light text-slate-800 tracking-widest uppercase">
+          {scrollSpeed > 0 ? "Flusso Attivo" : "Scorri per generare energia"}
+        </p>
+      </div>
+
+      {/* Indicatori visivi di movimento lungo la pagina per dare senso di velocità */}
+      {Array.from({ length: 50 }).map((_, i) => (
+        <div 
+          key={i}
+          className="absolute left-1/2 transform -translate-x-1/2 w-1 h-32 rounded-full opacity-20"
+          style={{ 
+            top: `${i * 10}vh`,
+            backgroundColor: `hsl(${(hue + i * 10) % 360}, 60%, 40%)`
+          }} 
+        />
+      ))}
+    </div>
+  );
+};
+
+// 2. MODALITÀ TABULA RASA (PULIZIA)
+// Simula l'atto di pulire uno schermo appannato.
+const CleanMode = () => {
+  const canvasRef = useRef(null);
+  const [percentCleaned, setPercentCleaned] = useState(0);
+  const [isDrawing, setIsDrawing] = useState(false);
+  
+  // Setup Canvas
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    
+    const resizeCanvas = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight - 80; // Lascia spazio per la navbar
+      resetCanvas(ctx, canvas.width, canvas.height);
+    };
+
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    return () => window.removeEventListener('resize', resizeCanvas);
+  }, []);
+
+  const resetCanvas = (ctx, w, h) => {
+    ctx.fillStyle = '#334155'; // Colore "sporco/nebbia" (Slate-700)
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = 'destination-out'; // Modalità gomma
+    setPercentCleaned(0);
+  };
+
+  const handleStart = (e) => {
+    setIsDrawing(true);
+    handleMove(e);
+  };
+
+  const handleEnd = () => {
+    setIsDrawing(false);
+    checkCleanPercentage();
+  };
+
+  const handleMove = (e) => {
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    
+    // Supporto sia touch che mouse
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+
+    ctx.beginPath();
+    ctx.arc(x, y, 40, 0, Math.PI * 2); // Dimensione del "dito"
+    ctx.fill();
+  };
+
+  // Calcolo approssimativo della percentuale pulita (ottimizzato per non scattare sempre)
+  const checkCleanPercentage = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    // Campioniamo i pixel (saltando per performance)
+    const w = canvas.width;
+    const h = canvas.height;
+    const imgData = ctx.getImageData(0, 0, w, h);
+    const pixels = imgData.data;
+    let transparentPixels = 0;
+    const sampleRate = 10; // Controlla 1 pixel ogni 10
+
+    for (let i = 0; i < pixels.length; i += 4 * sampleRate) {
+      if (pixels[i + 3] < 128) { // Se alpha è basso
+        transparentPixels++;
+      }
+    }
+    
+    const totalSampled = pixels.length / (4 * sampleRate);
+    const percent = Math.round((transparentPixels / totalSampled) * 100);
+    setPercentCleaned(percent);
+
+    if (percent > 90) {
+       // Reset automatico se quasi tutto pulito, per dare soddisfazione continua
+       setTimeout(() => resetCanvas(ctx, w, h), 1000);
+    }
+  };
+
+  return (
+    <div className="relative w-full h-full flex flex-col bg-gradient-to-br from-rose-100 to-teal-100">
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+        <h2 className="text-4xl font-bold text-teal-600 opacity-50 tracking-tighter">
+          RESPIRA
+        </h2>
+      </div>
+      
+      <canvas
+        ref={canvasRef}
+        className="touch-none cursor-crosshair z-10"
+        onMouseDown={handleStart}
+        onMouseUp={handleEnd}
+        onMouseMove={handleMove}
+        onTouchStart={handleStart}
+        onTouchEnd={handleEnd}
+        onTouchMove={handleMove}
+      />
+      
+      <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-white/80 px-4 py-2 rounded-full shadow-sm z-20 pointer-events-none">
+        <span className="text-slate-600 font-mono text-sm">{percentCleaned}% Pulito</span>
+      </div>
+      
+       <button 
+        onClick={() => {
+            const canvas = canvasRef.current;
+            resetCanvas(canvas.getContext('2d'), canvas.width, canvas.height);
+        }}
+        className="absolute top-4 right-4 bg-white/50 p-2 rounded-full hover:bg-white transition-colors z-20"
+      >
+        <RefreshCw size={20} className="text-slate-700" />
+      </button>
+    </div>
+  );
+};
+
+// 3. MODALITÀ SINCRO (RITMO/PROBABILITÀ)
+// Ispirato al tuo "50/50" ma trasformato in una ricerca di armonia.
+const RhythmMode = () => {
+  const [streak, setStreak] = useState(0);
+  const [history, setHistory] = useState([]); // true = armonico, false = dissonante
+  const [message, setMessage] = useState("Cerca l'armonia");
+
+  const handleClick = () => {
+    // 50% di possibilità, ma "addolcita"
+    const isHarmony = Math.random() > 0.45; // Leggermente a favore dell'utente per ridurre frustrazione
+    
+    if (isHarmony) {
+      setStreak(s => s + 1);
+      setMessage("Armonia...");
+      setHistory(h => [...h.slice(-10), true]);
+      if (window.navigator.vibrate) window.navigator.vibrate(50); // Feedback tattile leggero
+    } else {
+      setStreak(0);
+      setMessage("Dissonanza - Riprova");
+      setHistory(h => [...h.slice(-10), false]);
+      if (window.navigator.vibrate) window.navigator.vibrate([30, 50, 30]); // Feedback tattile diverso
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full bg-slate-50 select-none p-6">
+      <div className="mb-12 text-center">
+        <h3 className="text-6xl font-thin text-slate-800 mb-2">{streak}</h3>
+        <p className="text-slate-400 uppercase tracking-widest text-xs">Sequenza Attuale</p>
+      </div>
+
+      <button
+        onClick={handleClick}
+        className="w-48 h-48 rounded-full bg-white shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] active:shadow-inner active:scale-95 transition-all duration-200 flex items-center justify-center group"
+      >
+        <div className={`w-40 h-40 rounded-full border-2 ${streak > 0 ? 'border-teal-200 bg-teal-50' : 'border-slate-100 bg-slate-50'} flex items-center justify-center transition-colors duration-300`}>
+             <Activity className={`${streak > 0 ? 'text-teal-400' : 'text-slate-300'} group-hover:scale-110 transition-transform`} size={32} />
+        </div>
+      </button>
+
+      <div className="mt-12 h-8 flex gap-2 items-center">
+        {history.map((success, i) => (
+            <div 
+                key={i} 
+                className={`w-2 h-2 rounded-full transition-all duration-500 ${success ? 'bg-teal-400 scale-110' : 'bg-rose-300 scale-75'}`}
+            />
+        ))}
+      </div>
+      
+      <p className="mt-8 text-slate-400 font-light italic animate-pulse">
+        {message}
+      </p>
+    </div>
+  );
+};
+
+// --- APP PRINCIPALE ---
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('flow');
+
+  return (
+    <div className="h-screen w-full bg-slate-50 text-slate-800 font-sans overflow-hidden flex flex-col">
+      {/* AREA DI GIOCO */}
+      <div className="flex-1 relative overflow-y-auto overflow-x-hidden">
+        {activeTab === 'flow' && <FlowMode />}
+        {activeTab === 'clean' && <CleanMode />}
+        {activeTab === 'rhythm' && <RhythmMode />}
+      </div>
+
+      {/* BARRA DI NAVIGAZIONE INFERIORE */}
+      <div className="h-20 bg-white/90 backdrop-blur-md border-t border-slate-100 flex items-center justify-around px-6 z-50 shadow-lg">
+        <button 
+          onClick={() => setActiveTab('flow')}
+          className={`flex flex-col items-center space-y-1 transition-colors ${activeTab === 'flow' ? 'text-blue-500' : 'text-slate-400 hover:text-slate-600'}`}
+        >
+          <Wind size={24} />
+          <span className="text-xs font-medium">Flusso</span>
+        </button>
+
+        <button 
+          onClick={() => setActiveTab('clean')}
+          className={`flex flex-col items-center space-y-1 transition-colors ${activeTab === 'clean' ? 'text-teal-500' : 'text-slate-400 hover:text-slate-600'}`}
+        >
+          <Eraser size={24} />
+          <span className="text-xs font-medium">Tabula</span>
+        </button>
+
+        <button 
+          onClick={() => setActiveTab('rhythm')}
+          className={`flex flex-col items-center space-y-1 transition-colors ${activeTab === 'rhythm' ? 'text-rose-500' : 'text-slate-400 hover:text-slate-600'}`}
+        >
+          <Sparkles size={24} />
+          <span className="text-xs font-medium">Sincro</span>
+        </button>
+      </div>
+    </div>
+  );
+}
