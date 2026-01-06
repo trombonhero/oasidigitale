@@ -2,26 +2,37 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Oasi Digitale</title>
     
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     
-    <!-- Babel per interpretare il codice React nel browser -->
+    <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
-        /* Disabilita il "pull-to-refresh" su mobile per un'esperienza più app-like */
-        body {
-            overscroll-behavior-y: none;
+        /* Reset mobile per un comportamento "app-like" */
+        html, body {
+            height: 100%;
+            width: 100%;
+            overflow: hidden; /* Impedisce lo scroll elastico del body su iOS */
+            overscroll-behavior: none;
             -webkit-tap-highlight-color: transparent;
+            user-select: none; /* Impedisce la selezione del testo */
+            background-color: #f8fafc; /* Slate-50 fallback */
         }
-        /* Nasconde la scrollbar ma permette lo scroll */
+        
+        #root {
+            height: 100%;
+            width: 100%;
+        }
+
+        /* Utility per nascondere la scrollbar mantenendo la funzionalità */
         .no-scrollbar::-webkit-scrollbar {
             display: none;
         }
@@ -29,16 +40,20 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
+
+        /* Supporto per Safe Area (iPhone X+) */
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800">
+<body>
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // --- ICONE SVG (Inline per evitare dipendenze esterne) ---
-        
+        // --- ICONE SVG ---
         const Wind = ({ size = 24, className = "" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>
         );
@@ -61,74 +76,96 @@
 
         // --- COMPONENTI DEL GIOCO ---
 
-        // 1. MODALITÀ FLUSSO
+        // 1. MODALITÀ FLUSSO (Scroll Infinito)
+        // FIX MOBILE: Ora gestisce il proprio container scrollabile invece di dipendere da window
         const FlowMode = () => {
             const [scrollSpeed, setScrollSpeed] = useState(0);
             const [hue, setHue] = useState(200);
+            const containerRef = useRef(null);
             const lastScrollY = useRef(0);
             const scrollTimeout = useRef(null);
 
             useEffect(() => {
+                const container = containerRef.current;
+                if (!container) return;
+
                 const handleScroll = () => {
-                    const currentScrollY = window.scrollY;
+                    const currentScrollY = container.scrollTop;
                     const speed = Math.abs(currentScrollY - lastScrollY.current);
+                    
+                    // Limita la velocità massima visiva
                     setScrollSpeed(Math.min(speed, 50));
+                    
+                    // Cambia colore in base alla posizione
                     setHue((prev) => (prev + 0.5) % 360);
+                    
                     lastScrollY.current = currentScrollY;
 
+                    // Reset velocità quando ci si ferma
                     if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
                     scrollTimeout.current = setTimeout(() => {
                         setScrollSpeed(0);
                     }, 100);
                 };
 
-                window.addEventListener('scroll', handleScroll);
+                container.addEventListener('scroll', handleScroll, { passive: true });
                 return () => {
-                    window.removeEventListener('scroll', handleScroll);
+                    container.removeEventListener('scroll', handleScroll);
                     if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
                 };
             }, []);
 
             return (
-                <div className="min-h-[500vh] w-full transition-colors duration-500 ease-out relative"
-                     style={{ backgroundColor: `hsl(${hue}, 70%, ${90 - (scrollSpeed * 0.5)}%)` }}>
-                    
-                    <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
-                        <div 
-                            className="rounded-full blur-3xl transition-all duration-300 opacity-60 mix-blend-multiply"
-                            style={{ 
-                                width: `${200 + scrollSpeed * 10}px`, 
-                                height: `${200 + scrollSpeed * 10}px`,
-                                backgroundColor: `hsl(${(hue + 180) % 360}, 80%, 60%)`,
-                                transform: `scale(${1 + scrollSpeed / 50})`
-                            }}
-                        />
-                    </div>
-
-                    <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none opacity-50 mix-blend-overlay w-full px-4">
-                        <div className="flex justify-center">
-                            <Wind size={48 + scrollSpeed} className="mb-4 text-slate-800 transition-all duration-300" />
+                <div 
+                    ref={containerRef}
+                    className="h-full w-full overflow-y-auto overflow-x-hidden relative scroll-smooth no-scrollbar"
+                    style={{ WebkitOverflowScrolling: 'touch' }} // Importante per iOS momentum scroll
+                >
+                    {/* Contenitore altissimo per permettere lo scroll */}
+                    <div 
+                        className="min-h-[500vh] w-full transition-colors duration-500 ease-out pb-32"
+                        style={{ backgroundColor: `hsl(${hue}, 70%, ${90 - (scrollSpeed * 0.5)}%)` }}
+                    >
+                        {/* Particella centrale reattiva */}
+                        <div className="fixed inset-0 flex items-center justify-center pointer-events-none pb-20">
+                            <div 
+                                className="rounded-full blur-3xl transition-all duration-300 opacity-60 mix-blend-multiply"
+                                style={{ 
+                                    width: `${200 + scrollSpeed * 10}px`, 
+                                    height: `${200 + scrollSpeed * 10}px`,
+                                    backgroundColor: `hsl(${(hue + 180) % 360}, 80%, 60%)`,
+                                    transform: `scale(${1 + scrollSpeed / 50})`
+                                }}
+                            />
                         </div>
-                        <p className="text-xl font-light text-slate-800 tracking-widest uppercase">
-                            {scrollSpeed > 0 ? "Flusso Attivo" : "Scorri per generare energia"}
-                        </p>
-                    </div>
 
-                    {Array.from({ length: 50 }).map((_, i) => (
-                        <div 
-                            key={i}
-                            className="absolute left-1/2 transform -translate-x-1/2 w-1 h-32 rounded-full opacity-20"
-                            style={{ 
-                                top: `${i * 10}vh`,
-                                backgroundColor: `hsl(${(hue + i * 10) % 360}, 60%, 40%)`
-                            }} 
-                        />
-                    ))}
+                        {/* Istruzioni / Stato */}
+                        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none opacity-50 mix-blend-overlay w-full px-4 pb-20">
+                            <div className="flex justify-center">
+                                <Wind size={48 + scrollSpeed} className="mb-4 text-slate-800 transition-all duration-300" />
+                            </div>
+                            <p className="text-xl font-light text-slate-800 tracking-widest uppercase">
+                                {scrollSpeed > 0 ? "Flusso Attivo" : "Scorri..."}
+                            </p>
+                        </div>
+
+                        {/* Indicatori di profondità sparsi lungo la pagina */}
+                        {Array.from({ length: 50 }).map((_, i) => (
+                            <div 
+                                key={i}
+                                className="absolute left-1/2 transform -translate-x-1/2 w-1 h-32 rounded-full opacity-20"
+                                style={{ 
+                                    top: `${i * 10}vh`,
+                                    backgroundColor: `hsl(${(hue + i * 10) % 360}, 60%, 40%)`
+                                }} 
+                            />
+                        ))}
+                    </div>
                 </div>
             );
         };
 
-        // 2. MODALITÀ TABULA RASA
+        // 2. MODALITÀ TABULA RASA (Clean)
         const CleanMode = () => {
             const canvasRef = useRef(null);
             const [percentCleaned, setPercentCleaned] = useState(0);
@@ -140,19 +177,15 @@
                 
                 const resizeCanvas = () => {
                     canvas.width = window.innerWidth;
-                    canvas.height = window.innerHeight - 80;
+                    canvas.height = window.innerHeight; // Full height
                     resetCanvas(ctx, canvas.width, canvas.height);
                 };
 
                 resizeCanvas();
                 window.addEventListener('resize', resizeCanvas);
                 
-                // Disabilita lo scroll su mobile mentre si disegna
-                document.body.style.overflow = 'hidden';
-                
                 return () => {
                     window.removeEventListener('resize', resizeCanvas);
-                    document.body.style.overflow = 'auto';
                 };
             }, []);
 
@@ -175,6 +208,11 @@
 
             const handleMove = (e) => {
                 if (!isDrawing) return;
+                
+                // Previene comportamenti di default del browser (es. scroll)
+                // Ma non chiamare preventDefault() su eventi passivi se non necessario.
+                // In questo caso gestiamo il blocco tramite CSS 'touch-action: none'
+                
                 const canvas = canvasRef.current;
                 const ctx = canvas.getContext('2d');
                 const rect = canvas.getBoundingClientRect();
@@ -195,10 +233,12 @@
                 const ctx = canvas.getContext('2d');
                 const w = canvas.width;
                 const h = canvas.height;
+                // Ottimizzazione: campiona solo un'area centrale o ridotta per performance su mobile
+                // Qui manteniamo il campionamento semplice ma con passo largo
                 const imgData = ctx.getImageData(0, 0, w, h);
                 const pixels = imgData.data;
                 let transparentPixels = 0;
-                const sampleRate = 10;
+                const sampleRate = 50; // Aumentato per performance su mobile
 
                 for (let i = 0; i < pixels.length; i += 4 * sampleRate) {
                     if (pixels[i + 3] < 128) {
@@ -211,21 +251,23 @@
                 setPercentCleaned(percent);
 
                 if (percent > 90) {
-                   setTimeout(() => resetCanvas(ctx, w, h), 1000);
+                   setTimeout(() => resetCanvas(ctx, w, h), 800);
                 }
             };
 
             return (
                 <div className="relative w-full h-full flex flex-col bg-gradient-to-br from-rose-100 to-teal-100 overflow-hidden">
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-                        <h2 className="text-4xl font-bold text-teal-600 opacity-50 tracking-tighter">
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 pb-20">
+                        <h2 className="text-4xl font-bold text-teal-600 opacity-50 tracking-tighter animate-pulse">
                             RESPIRA
                         </h2>
                     </div>
                     
+                    {/* Canvas con touch-action: none per gestire il tocco senza scrollare la pagina */}
                     <canvas
                         ref={canvasRef}
-                        className="touch-none cursor-crosshair z-10"
+                        className="touch-none cursor-crosshair z-10 w-full h-full"
+                        style={{ touchAction: 'none' }}
                         onMouseDown={handleStart}
                         onMouseUp={handleEnd}
                         onMouseMove={handleMove}
@@ -234,7 +276,7 @@
                         onTouchMove={handleMove}
                     />
                     
-                    <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-white/80 px-4 py-2 rounded-full shadow-sm z-20 pointer-events-none">
+                    <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-white/80 px-4 py-2 rounded-full shadow-sm z-20 pointer-events-none mb-safe">
                         <span className="text-slate-600 font-mono text-sm">{percentCleaned}% Pulito</span>
                     </div>
                     
@@ -243,15 +285,15 @@
                             const canvas = canvasRef.current;
                             resetCanvas(canvas.getContext('2d'), canvas.width, canvas.height);
                         }}
-                        className="absolute top-4 right-4 bg-white/50 p-2 rounded-full hover:bg-white transition-colors z-20"
+                        className="absolute top-4 right-4 bg-white/50 p-2 rounded-full hover:bg-white transition-colors z-20 active:scale-90 duration-200"
                     >
-                        <RefreshCw size={20} className="text-slate-700" />
+                        <RefreshCw size={24} className="text-slate-700" />
                     </button>
                 </div>
             );
         };
 
-        // 3. MODALITÀ SINCRO
+        // 3. MODALITÀ SINCRO (Rhythm)
         const RhythmMode = () => {
             const [streak, setStreak] = useState(0);
             const [history, setHistory] = useState([]);
@@ -274,19 +316,19 @@
             };
 
             return (
-                <div className="flex flex-col items-center justify-center h-full bg-slate-50 select-none p-6 overflow-hidden">
+                <div className="flex flex-col items-center justify-center h-full bg-slate-50 select-none p-6 overflow-hidden pb-24">
                     <div className="mb-12 text-center">
-                        <h3 className="text-6xl font-thin text-slate-800 mb-2">{streak}</h3>
+                        <h3 className="text-6xl font-thin text-slate-800 mb-2 transition-all duration-300 transform" key={streak}>{streak}</h3>
                         <p className="text-slate-400 uppercase tracking-widest text-xs">Sequenza Attuale</p>
                     </div>
 
                     <button
                         onClick={handleClick}
-                        className="w-48 h-48 rounded-full bg-white shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] active:shadow-inner active:scale-95 transition-all duration-200 flex items-center justify-center group"
+                        className="w-48 h-48 rounded-full bg-white shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] active:shadow-inner active:scale-95 transition-all duration-100 flex items-center justify-center group touch-manipulation"
                         style={{ WebkitTapHighlightColor: 'transparent' }}
                     >
                         <div className={`w-40 h-40 rounded-full border-2 ${streak > 0 ? 'border-teal-200 bg-teal-50' : 'border-slate-100 bg-slate-50'} flex items-center justify-center transition-colors duration-300`}>
-                            <Activity className={`${streak > 0 ? 'text-teal-400' : 'text-slate-300'} group-hover:scale-110 transition-transform`} size={32} />
+                            <Activity className={`${streak > 0 ? 'text-teal-400' : 'text-slate-300'} group-hover:scale-110 transition-transform duration-300`} size={32} />
                         </div>
                     </button>
 
@@ -299,7 +341,7 @@
                         ))}
                     </div>
                     
-                    <p className="mt-8 text-slate-400 font-light italic animate-pulse">
+                    <p className="mt-8 text-slate-400 font-light italic animate-pulse h-6">
                         {message}
                     </p>
                 </div>
@@ -310,47 +352,39 @@
         const App = () => {
             const [activeTab, setActiveTab] = useState('flow');
 
-            // Reset scroll quando si cambia tab
-            useEffect(() => {
-                window.scrollTo(0, 0);
-            }, [activeTab]);
-
             return (
-                <div className="h-[100dvh] w-full bg-slate-50 text-slate-800 font-sans overflow-hidden flex flex-col">
-                    {/* AREA DI GIOCO */}
-                    <div className="flex-1 relative w-full">
-                         {/* Usiamo overflow-y-auto solo per il Flow mode che ne ha bisogno */}
-                        <div className={`w-full h-full ${activeTab === 'flow' ? 'overflow-y-auto' : 'overflow-hidden'}`}>
-                            {activeTab === 'flow' && <FlowMode />}
-                            {activeTab === 'clean' && <CleanMode />}
-                            {activeTab === 'rhythm' && <RhythmMode />}
-                        </div>
+                <div className="absolute inset-0 w-full h-full bg-slate-50 text-slate-800 font-sans flex flex-col">
+                    {/* AREA DI GIOCO - Occupa tutto lo spazio meno la nav bar */}
+                    <div className="flex-1 w-full h-full relative overflow-hidden pb-20">
+                        {activeTab === 'flow' && <FlowMode />}
+                        {activeTab === 'clean' && <CleanMode />}
+                        {activeTab === 'rhythm' && <RhythmMode />}
                     </div>
 
-                    {/* BARRA DI NAVIGAZIONE INFERIORE */}
-                    <div className="h-20 bg-white/90 backdrop-blur-md border-t border-slate-100 flex items-center justify-around px-6 z-50 shadow-lg shrink-0">
+                    {/* BARRA DI NAVIGAZIONE - Fissa in basso */}
+                    <div className="fixed bottom-0 left-0 right-0 h-20 bg-white/95 backdrop-blur-md border-t border-slate-100 flex items-center justify-around px-6 z-50 shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.05)] pb-safe">
                         <button 
                             onClick={() => setActiveTab('flow')}
-                            className={`flex flex-col items-center space-y-1 transition-colors ${activeTab === 'flow' ? 'text-blue-500' : 'text-slate-400 hover:text-slate-600'}`}
+                            className={`flex flex-col items-center space-y-1 p-2 rounded-xl transition-all duration-300 ${activeTab === 'flow' ? 'text-blue-500 bg-blue-50' : 'text-slate-400 hover:text-slate-600'}`}
                         >
                             <Wind size={24} />
-                            <span className="text-xs font-medium">Flusso</span>
+                            <span className="text-[10px] uppercase font-bold tracking-wider">Flusso</span>
                         </button>
 
                         <button 
                             onClick={() => setActiveTab('clean')}
-                            className={`flex flex-col items-center space-y-1 transition-colors ${activeTab === 'clean' ? 'text-teal-500' : 'text-slate-400 hover:text-slate-600'}`}
+                            className={`flex flex-col items-center space-y-1 p-2 rounded-xl transition-all duration-300 ${activeTab === 'clean' ? 'text-teal-500 bg-teal-50' : 'text-slate-400 hover:text-slate-600'}`}
                         >
                             <Eraser size={24} />
-                            <span className="text-xs font-medium">Tabula</span>
+                            <span className="text-[10px] uppercase font-bold tracking-wider">Tabula</span>
                         </button>
 
                         <button 
                             onClick={() => setActiveTab('rhythm')}
-                            className={`flex flex-col items-center space-y-1 transition-colors ${activeTab === 'rhythm' ? 'text-rose-500' : 'text-slate-400 hover:text-slate-600'}`}
+                            className={`flex flex-col items-center space-y-1 p-2 rounded-xl transition-all duration-300 ${activeTab === 'rhythm' ? 'text-rose-500 bg-rose-50' : 'text-slate-400 hover:text-slate-600'}`}
                         >
                             <Sparkles size={24} />
-                            <span className="text-xs font-medium">Sincro</span>
+                            <span className="text-[10px] uppercase font-bold tracking-wider">Sincro</span>
                         </button>
                     </div>
                 </div>
