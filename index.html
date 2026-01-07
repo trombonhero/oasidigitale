@@ -20,6 +20,8 @@
             user-select: none;
             -webkit-tap-highlight-color: transparent;
             font-family: 'Helvetica Neue', sans-serif;
+            /* Impedisce comportamenti elastici nativi su iOS */
+            overscroll-behavior: none;
         }
         
         /* Animazioni personalizzate */
@@ -36,9 +38,10 @@
         .animate-breathe {
             animation: breathe 4s infinite ease-in-out;
         }
-
-        .touch-manipulation {
-            touch-action: manipulation;
+        
+        /* Mountain silhouette clip path */
+        .mountains {
+            clip-path: polygon(0% 100%, 0% 60%, 15% 75%, 30% 50%, 50% 80%, 70% 45%, 85% 65%, 100% 50%, 100% 100%);
         }
     </style>
 </head>
@@ -48,18 +51,11 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // --- ICONE SVG (Inline per stabilità) ---
+        // --- ICONE SVG ---
         const Sun = ({ color = "currentColor", size = 24, className = "" }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                <circle cx="12" cy="12" r="5"></circle>
-                <line x1="12" y1="1" x2="12" y2="3"></line>
-                <line x1="12" y1="21" x2="12" y2="23"></line>
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                <line x1="1" y1="12" x2="3" y2="12"></line>
-                <line x1="21" y1="12" x2="23" y2="12"></line>
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none" className={className}>
+                <circle cx="12" cy="12" r="6"></circle>
+                <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
             </svg>
         );
 
@@ -94,20 +90,20 @@
             </svg>
         );
 
-        // --- FASE 1: L'ALBA (SCROLL RESISTIVO) ---
+        // --- FASE 1: L'ALBA (SCROLL RESISTIVO A TUTTO SCHERMO) ---
         const SunrisePhase = ({ onComplete }) => {
             const [progress, setProgress] = useState(0);
             const [isDragging, setIsDragging] = useState(false);
-            const containerRef = useRef(null);
             const startY = useRef(0);
             const currentY = useRef(0);
+            const audioCtx = useRef(null);
 
-            // Logica di "gravità": se lasci, il sole scende
+            // Logica di gravità (il sole cade se non è al 100%)
             useEffect(() => {
                 let interval;
                 if (!isDragging && progress > 0 && progress < 100) {
                     interval = setInterval(() => {
-                        setProgress(p => Math.max(0, p - 2)); // Scende veloce
+                        setProgress(p => Math.max(0, p - 3)); // Cade un po' più veloce
                     }, 16);
                 }
                 return () => clearInterval(interval);
@@ -116,43 +112,52 @@
             const handleStart = (y) => {
                 setIsDragging(true);
                 startY.current = y;
-                currentY.current = progress; // Salva progresso attuale come base
+                currentY.current = progress;
             };
 
             const handleMove = (y) => {
                 if (!isDragging) return;
-                const deltaY = startY.current - y; // Positivo se vai verso l'alto
-                const screenH = window.innerHeight * 0.7; // 70% dello schermo è la corsa
+                const deltaY = startY.current - y; // Positivo = verso l'alto
                 
-                // Calcola nuovo progresso basato sul delta
-                // Aggiungiamo "resistenza" dividendo il delta
-                const dragPercent = (deltaY / screenH) * 100;
+                // FIX: Usiamo quasi tutta l'altezza dello schermo (80vh) per un movimento completo
+                const screenRange = window.innerHeight * 0.8; 
                 
-                // La formula deve sommare il movimento al progresso salvato all'inizio del drag
+                // Fattore di resistenza: 1.0 = movimento 1:1. 
+                // Usiamo 1.2 per farlo sentire leggermente "pesante"
+                const resistance = 1.2;
+                
+                const dragPercent = (deltaY / screenRange) * 100 / resistance;
                 let newProgress = Math.min(100, Math.max(0, currentY.current + dragPercent));
                 
                 setProgress(newProgress);
 
+                // Vibrazione leggera quando si avvicina al target (sopra il 90%)
+                if (newProgress > 90 && window.navigator.vibrate && Math.random() > 0.8) {
+                    window.navigator.vibrate(10);
+                }
+
                 if (newProgress >= 100) {
                     setIsDragging(false);
-                    if (window.navigator.vibrate) window.navigator.vibrate(200);
-                    setTimeout(onComplete, 500);
+                    if (window.navigator.vibrate) window.navigator.vibrate([50, 50, 200]);
+                    setTimeout(onComplete, 800);
                 }
             };
 
             const handleEnd = () => {
                 setIsDragging(false);
-                currentY.current = progress; // Salva dove sei arrivato
             };
 
-            // Colore del cielo che cambia col progresso (da Notte a Alba)
-            const skyColor = `hsl(${220 + (progress * 0.4)}, ${60 + (progress * 0.2)}%, ${10 + (progress * 0.4)}%)`;
-            const sunColor = `hsl(${10 + (progress * 0.5)}, 100%, ${50 + (progress * 0.2)}%)`;
+            // Colori dinamici: Notte profonda -> Alba chiara
+            const skyColor = `hsl(${220 + (progress * 0.4)}, ${60 - (progress * 0.3)}%, ${10 + (progress * 0.7)}%)`;
+            const sunColor = `hsl(${20 + (progress * 0.4)}, 100%, ${50 + (progress * 0.2)}%)`;
+            
+            // Posizione: da bottom 5% a bottom 85% (in alto)
+            const sunBottomPosition = 5 + (progress * 0.80); 
 
             return (
                 <div 
-                    className="h-full w-full relative flex flex-col items-center justify-end pb-20 overflow-hidden transition-colors duration-100"
-                    style={{ backgroundColor: skyColor }}
+                    className="h-full w-full relative flex flex-col items-center overflow-hidden transition-colors duration-200"
+                    style={{ backgroundColor: skyColor, touchAction: 'none' }} 
                     onTouchStart={(e) => handleStart(e.touches[0].clientY)}
                     onTouchMove={(e) => handleMove(e.touches[0].clientY)}
                     onTouchEnd={handleEnd}
@@ -160,41 +165,54 @@
                     onMouseMove={(e) => handleMove(e.clientY)}
                     onMouseUp={handleEnd}
                 >
-                    <div className="absolute top-10 text-white/50 text-sm uppercase tracking-[0.3em] font-light">
-                        Risveglia il sole
+                    {/* TARGET / OBIETTIVO IN ALTO */}
+                    <div className="absolute top-[10%] w-[100px] h-[100px] rounded-full border-2 border-dashed border-white/30 flex items-center justify-center animate-pulse z-0">
+                         {progress < 90 && (
+                            <ArrowUp className="text-white/20 animate-bounce" size={24} />
+                         )}
                     </div>
 
-                    {/* Guida visiva */}
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div className={`flex flex-col items-center transition-opacity duration-500 ${isDragging ? 'opacity-0' : 'opacity-30'}`}>
-                            <ArrowUp className="text-white mb-2 animate-bounce" />
-                            <span className="text-white text-xs">Trascina su lentamente</span>
-                        </div>
+                    {/* GUIDA TESTUALE */}
+                    <div className="absolute top-[25%] text-white/40 text-xs uppercase tracking-[0.3em] font-light pointer-events-none transition-opacity duration-500"
+                         style={{ opacity: isDragging ? 0 : 1 }}>
+                        Trascina il sole allo Zenit
                     </div>
 
-                    {/* Il Sole */}
-                    <div 
-                        className="rounded-full blur-xl absolute"
-                        style={{
-                            width: '150px',
-                            height: '150px',
-                            backgroundColor: sunColor,
-                            bottom: `${10 + (progress * 0.6)}%`, // Si muove dal 10% al 70% dell'altezza
-                            boxShadow: `0 0 ${progress}px ${sunColor}`,
-                            transition: isDragging ? 'none' : 'bottom 0.5s ease-out'
-                        }}
-                    ></div>
+                    {/* ORIZZONTE / MONTAGNE */}
+                    <div className="absolute bottom-0 left-0 right-0 h-32 bg-slate-900/80 mountains z-10 pointer-events-none"></div>
+                    <div className="absolute bottom-0 left-0 right-0 h-12 bg-slate-950 z-10 pointer-events-none"></div>
 
+
+                    {/* IL SOLE (Elemento Interattivo) */}
                     <div 
-                        className="rounded-full absolute flex items-center justify-center z-10 bg-white/10 backdrop-blur-sm border border-white/20"
+                        className="absolute z-20 flex items-center justify-center pointer-events-none"
                         style={{
-                            width: '80px',
-                            height: '80px',
-                            bottom: `${10 + (progress * 0.6)}%`,
-                            transition: isDragging ? 'none' : 'bottom 0.5s ease-out'
+                            width: '100px',
+                            height: '100px',
+                            bottom: `${sunBottomPosition}%`,
+                            transition: isDragging ? 'none' : 'bottom 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)' // Effetto rimbalzo quando cade
                         }}
                     >
-                         <Sun color="white" size={32} />
+                        {/* Alone luminoso */}
+                        <div 
+                            className="absolute rounded-full blur-2xl"
+                            style={{
+                                width: '200px',
+                                height: '200px',
+                                backgroundColor: sunColor,
+                                opacity: 0.3 + (progress / 200),
+                            }}
+                        />
+                        
+                        {/* Corpo del sole */}
+                        <div 
+                            className="w-[80px] h-[80px] rounded-full bg-white/10 backdrop-blur-md border border-white/40 flex items-center justify-center shadow-[0_0_40px_rgba(255,200,100,0.3)]"
+                            style={{
+                                boxShadow: `0 0 ${progress/2}px ${sunColor}`
+                            }}
+                        >
+                            <Sun color={progress > 95 ? "white" : "rgba(255,255,255,0.8)"} size={40} className={progress > 95 ? "animate-spin" : ""} />
+                        </div>
                     </div>
                 </div>
             );
@@ -209,19 +227,17 @@
             useEffect(() => {
                 let interval;
                 if (leftActive && rightActive) {
-                    // Carica solo se entrambi premuti
                     interval = setInterval(() => {
                         setCharge(c => {
                             if (c >= 100) {
                                 clearInterval(interval);
                                 return 100;
                             }
-                            return c + 1; // 1.6 secondi circa per caricare
+                            return c + 1;
                         });
                         if (window.navigator.vibrate && Math.random() > 0.8) window.navigator.vibrate(10);
                     }, 30);
                 } else {
-                    // Scarica se lasci
                     interval = setInterval(() => {
                         setCharge(c => Math.max(0, c - 2));
                     }, 20);
@@ -236,13 +252,12 @@
             }, [leftActive, rightActive, charge]);
 
             return (
-                <div className="h-full w-full bg-slate-900 flex flex-col items-center justify-center relative">
-                    <div className="absolute top-10 text-slate-500 text-sm uppercase tracking-[0.3em] font-light">
+                <div className="h-full w-full bg-slate-900 flex flex-col items-center justify-center relative select-none animate-[fadeIn_1s_ease-out]">
+                    <div className="absolute top-10 text-slate-500 text-sm uppercase tracking-[0.3em] font-light pointer-events-none">
                         Connetti gli emisferi
                     </div>
                     
-                    {/* Indicatore Centrale */}
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
                          <div 
                             className="rounded-full transition-all duration-300 border-2 border-teal-500/30 flex items-center justify-center"
                             style={{ 
@@ -257,34 +272,34 @@
                     </div>
 
                     <div className="w-full h-full flex flex-row">
-                        {/* Area Sinistra */}
                         <div 
                             className={`flex-1 flex items-center justify-center transition-colors duration-500 ${leftActive ? 'bg-teal-900/20' : 'bg-transparent'}`}
-                            onTouchStart={() => setLeftActive(true)}
-                            onTouchEnd={() => setLeftActive(false)}
+                            onTouchStart={(e) => { e.preventDefault(); setLeftActive(true); }}
+                            onTouchEnd={(e) => { e.preventDefault(); setLeftActive(false); }}
                             onMouseDown={() => setLeftActive(true)}
                             onMouseUp={() => setLeftActive(false)}
+                            style={{ touchAction: 'none' }}
                         >
-                            <div className={`w-20 h-20 rounded-full border-2 border-slate-700 flex items-center justify-center transition-all ${leftActive ? 'scale-90 bg-teal-500 border-teal-400' : ''}`}>
+                            <div className={`w-20 h-20 rounded-full border-2 border-slate-700 flex items-center justify-center transition-all pointer-events-none ${leftActive ? 'scale-90 bg-teal-500 border-teal-400' : ''}`}>
                                 <span className="text-slate-500 text-xs">SINISTRA</span>
                             </div>
                         </div>
 
-                        {/* Area Destra */}
                         <div 
                             className={`flex-1 flex items-center justify-center transition-colors duration-500 ${rightActive ? 'bg-teal-900/20' : 'bg-transparent'}`}
-                            onTouchStart={() => setRightActive(true)}
-                            onTouchEnd={() => setRightActive(false)}
+                            onTouchStart={(e) => { e.preventDefault(); setRightActive(true); }}
+                            onTouchEnd={(e) => { e.preventDefault(); setRightActive(false); }}
                             onMouseDown={() => setRightActive(true)}
                             onMouseUp={() => setRightActive(false)}
+                            style={{ touchAction: 'none' }}
                         >
-                             <div className={`w-20 h-20 rounded-full border-2 border-slate-700 flex items-center justify-center transition-all ${rightActive ? 'scale-90 bg-teal-500 border-teal-400' : ''}`}>
+                             <div className={`w-20 h-20 rounded-full border-2 border-slate-700 flex items-center justify-center transition-all pointer-events-none ${rightActive ? 'scale-90 bg-teal-500 border-teal-400' : ''}`}>
                                 <span className="text-slate-500 text-xs">DESTRA</span>
                             </div>
                         </div>
                     </div>
                     
-                    <p className="absolute bottom-20 text-slate-500 text-xs font-mono">
+                    <p className="absolute bottom-20 text-slate-500 text-xs font-mono pointer-events-none">
                         Premi entrambi i lati per sincronizzare
                     </p>
                 </div>
@@ -294,11 +309,11 @@
         // --- FASE 3: IL PASSO (RITMO MOTORIO) ---
         const WalkPhase = ({ onComplete }) => {
             const [steps, setSteps] = useState(0);
-            const [lastStep, setLastStep] = useState(null); // 'L' or 'R'
-            const GOAL = 40; // 40 passi alternati
+            const [lastStep, setLastStep] = useState(null); 
+            const GOAL = 40; 
 
             const handleStep = (side) => {
-                if (side === lastStep) return; // Impedisce di spammare lo stesso lato
+                if (side === lastStep) return; 
                 
                 setLastStep(side);
                 setSteps(s => s + 1);
@@ -312,12 +327,11 @@
             const progress = (steps / GOAL) * 100;
 
             return (
-                <div className="h-full w-full bg-gradient-to-b from-slate-900 to-indigo-950 flex flex-col relative">
-                     <div className="absolute top-10 w-full text-center text-indigo-300 text-sm uppercase tracking-[0.3em] font-light">
+                <div className="h-full w-full bg-gradient-to-b from-slate-900 to-indigo-950 flex flex-col relative select-none animate-[fadeIn_1s_ease-out]">
+                     <div className="absolute top-10 w-full text-center text-indigo-300 text-sm uppercase tracking-[0.3em] font-light pointer-events-none">
                         Attiva il corpo
                     </div>
 
-                    {/* Progress Bar visuale */}
                     <div className="w-full h-2 bg-slate-800 fixed top-0 left-0">
                         <div 
                             className="h-full bg-indigo-500 transition-all duration-200"
@@ -325,28 +339,31 @@
                         />
                     </div>
 
-                    <div className="flex-1 flex flex-col items-center justify-center space-y-8 z-10">
+                    <div className="flex-1 flex flex-col items-center justify-center space-y-8 z-10 pointer-events-none">
                         <div className="text-6xl font-black text-indigo-500/30">
                             {steps}
                         </div>
                         <div className="text-center px-10 text-indigo-200/60 text-sm">
-                            Alterna Sinistra e Destra ritmicamente per caricare la giornata.
+                            Alterna Sinistra e Destra ritmicamente.
                         </div>
                     </div>
 
-                    {/* Bottoni "Piedi" */}
                     <div className="h-1/2 w-full flex">
                         <button 
-                            className="flex-1 bg-slate-800/50 active:bg-indigo-600 active:scale-[0.98] transition-all duration-75 border-r border-slate-700 flex items-center justify-center"
-                            onClick={() => handleStep('L')}
+                            className="flex-1 bg-slate-800/50 active:bg-indigo-600 active:scale-[0.98] transition-all duration-75 border-r border-slate-700 flex items-center justify-center touch-manipulation"
+                            onMouseDown={() => handleStep('L')}
+                            onTouchStart={(e) => { e.preventDefault(); handleStep('L'); }}
+                            style={{ touchAction: 'manipulation' }}
                         >
-                            <Footprints className="transform rotate-90 text-slate-500" size={40} />
+                            <Footprints className="transform rotate-90 text-slate-500 pointer-events-none" size={40} />
                         </button>
                         <button 
-                            className="flex-1 bg-slate-800/50 active:bg-indigo-600 active:scale-[0.98] transition-all duration-75 flex items-center justify-center"
-                            onClick={() => handleStep('R')}
+                            className="flex-1 bg-slate-800/50 active:bg-indigo-600 active:scale-[0.98] transition-all duration-75 flex items-center justify-center touch-manipulation"
+                            onMouseDown={() => handleStep('R')}
+                            onTouchStart={(e) => { e.preventDefault(); handleStep('R'); }}
+                            style={{ touchAction: 'manipulation' }}
                         >
-                            <Footprints className="transform -rotate-90 text-slate-500" size={40} />
+                            <Footprints className="transform -rotate-90 text-slate-500 pointer-events-none" size={40} />
                         </button>
                     </div>
                 </div>
@@ -375,10 +392,8 @@
             );
         };
 
-        // --- APP CONTROLLER ---
         const App = () => {
-            const [phase, setPhase] = useState(0); // 0: Sun, 1: Sync, 2: Walk, 3: Done
-
+            const [phase, setPhase] = useState(0); 
             const nextPhase = () => setPhase(p => p + 1);
 
             return (
