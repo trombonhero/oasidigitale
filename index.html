@@ -1,343 +1,294 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Sun, Footprints, CheckCircle } from 'lucide-react';
-
-// --- UTILS ---
-const vibrate = (ms) => {
-    // Controllo di sicurezza per l'ambiente browser
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(ms);
-    }
-};
-
-// --- COMPONENTS ---
-
-// FASE 1: L'ATTRITO
-const PhaseOne = ({ onComplete }) => {
-    const [position, setPosition] = useState(0); 
-    const [isDragging, setIsDragging] = useState(false);
-    const currentY = useRef(0);
-    const requestRef = useRef();
-    const dragStartY = useRef(0);
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AURORA | Ritual Awakening</title>
     
-    const GRAVITY = 0.8; 
-    const DRAG_FACTOR = 0.15; 
+    <!-- Librerie essenziali -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     
-    const animate = () => {
-        if (!isDragging && currentY.current > 0) {
-            currentY.current = Math.max(0, currentY.current - GRAVITY);
-            setPosition(currentY.current);
-        }
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@200;400;600&display=swap');
         
-        if (currentY.current >= 98) {
-            vibrate([50, 50, 50]);
-            onComplete();
-            return; 
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: black;
+            color: white;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
         }
-        
-        requestRef.current = requestAnimationFrame(animate);
-    };
-
-    useEffect(() => {
-        requestRef.current = requestAnimationFrame(animate);
-        return () => cancelAnimationFrame(requestRef.current);
-    }, [isDragging]);
-
-    const handleStart = (clientY) => {
-        setIsDragging(true);
-        dragStartY.current = clientY;
-        vibrate(10);
-    };
-
-    const handleMove = (clientY) => {
-        if (!isDragging) return;
-        const delta = dragStartY.current - clientY;
-        
-        if (delta > 0) {
-            const resistance = 1 + (currentY.current / 50); 
-            const moveAmount = (delta * DRAG_FACTOR) / resistance;
-            currentY.current = Math.min(100, currentY.current + moveAmount);
-            setPosition(currentY.current);
-            dragStartY.current = clientY;
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 0.8; }
         }
-    };
-
-    const handleEnd = () => setIsDragging(false);
-
-    // Mouse handlers for desktop testing
-    const onMouseDown = (e) => handleStart(e.clientY);
-    const onMouseMove = (e) => handleMove(e.clientY);
-
-    return (
-        <div 
-            className="h-full w-full flex flex-col items-center justify-between relative overflow-hidden bg-gradient-to-t from-slate-900 via-indigo-900 to-purple-900 text-white p-6 select-none touch-none"
-            onTouchStart={(e) => handleStart(e.touches[0].clientY)}
-            onTouchMove={(e) => handleMove(e.touches[0].clientY)}
-            onTouchEnd={handleEnd}
-            onMouseDown={onMouseDown}
-            onMouseMove={onMouseMove}
-            onMouseUp={handleEnd}
-            onMouseLeave={handleEnd}
-        >
-            <div className="z-10 text-center mt-10 opacity-80 pointer-events-none">
-                <h2 className="text-2xl font-light mb-2">Fase 1: L'Attrito</h2>
-                <p className="text-sm font-extralight opacity-70">Trascina il peso dell'alba.<br/>Non lasciarlo cadere.</p>
-            </div>
-
-            <div className="absolute top-[15%] w-full h-1 bg-white/20 border-t border-white/10 z-0 pointer-events-none"></div>
-            <div className="absolute top-[12%] text-xs text-white/40 uppercase tracking-widest pointer-events-none">Risveglio</div>
-
-            <div className="absolute h-[80%] w-2 bg-white/5 rounded-full bottom-0 z-0 pointer-events-none"></div>
-
-            <div 
-                style={{ bottom: `${position}%` }}
-                className={`absolute w-32 h-32 rounded-full blur-sm transition-transform duration-75 z-20 pointer-events-none
-                            ${isDragging ? 'scale-110 shadow-[0_0_50px_rgba(255,200,100,0.4)]' : 'scale-100 shadow-[0_0_20px_rgba(255,100,50,0.2)]'}`}
-            >
-                <div className="w-full h-full rounded-full bg-gradient-to-tr from-orange-600 to-yellow-200 flex items-center justify-center">
-                    <Sun className="text-orange-600 w-12 h-12" />
-                </div>
-            </div>
-
-            <div className="mb-10 text-xs opacity-30 uppercase tracking-widest pointer-events-none">
-                {isDragging ? "Resisti..." : "Afferra il sole"}
-            </div>
-        </div>
-    );
-};
-
-// FASE 2: LA SINCRONIA
-const PhaseTwo = ({ onComplete }) => {
-    const [progress, setProgress] = useState(0);
-    const [leftActive, setLeftActive] = useState(false);
-    const [rightActive, setRightActive] = useState(false);
-    const progressRef = useRef(0);
-    const intervalRef = useRef(null);
-
-    useEffect(() => {
-        if (leftActive && rightActive) {
-            intervalRef.current = setInterval(() => {
-                progressRef.current += 0.5;
-                setProgress(progressRef.current);
-                if (progressRef.current % 10 === 0) vibrate(10); 
-                if (progressRef.current >= 100) {
-                    clearInterval(intervalRef.current);
-                    vibrate([100, 50, 100]);
-                    onComplete();
-                }
-            }, 20);
-        } else {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            intervalRef.current = setInterval(() => {
-                if (progressRef.current > 0) {
-                    progressRef.current -= 1;
-                    setProgress(progressRef.current);
-                } else {
-                    clearInterval(intervalRef.current);
-                }
-            }, 20);
+        .animate-breathe {
+            animation: breathe 4s infinite ease-in-out;
         }
-        return () => clearInterval(intervalRef.current);
-    }, [leftActive, rightActive]);
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-    return (
-        <div className="h-full w-full flex flex-col items-center justify-center relative bg-gradient-to-t from-purple-900 via-fuchsia-900 to-pink-800 text-white select-none touch-none">
-            <div className="absolute top-10 text-center z-10 pointer-events-none">
-                <h2 className="text-2xl font-light mb-2">Fase 2: La Sincronia</h2>
-                <p className="text-sm font-extralight opacity-70">Connetti gli emisferi.<br/>Premi entrambi i cerchi.</p>
-            </div>
+    <script type="text/babel">
+        // CONFIGURAZIONE BROWSER
+        const { useState, useEffect, useRef } = React;
 
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
-                 <div 
-                    className="w-48 h-48 rounded-full bg-white/5 animate-breathe blur-xl"
-                    style={{ animationDuration: '5s' }}
-                 ></div>
-                 <div className="absolute text-2xl font-thin tracking-[0.2em] opacity-80">
-                    {Math.round(progress)}%
-                 </div>
-            </div>
-
-            <div className="w-full h-full flex flex-row items-end pb-20 justify-around px-4 z-20">
-                <button
-                    className={`w-32 h-32 rounded-full border-2 transition-all duration-300 flex items-center justify-center backdrop-blur-sm outline-none
-                        ${leftActive ? 'bg-cyan-500/30 border-cyan-300 scale-95 shadow-[0_0_30px_rgba(34,211,238,0.5)]' : 'bg-white/5 border-white/20 scale-100'}`}
-                    onTouchStart={(e) => { e.preventDefault(); setLeftActive(true); vibrate(20); }}
-                    onTouchEnd={(e) => { e.preventDefault(); setLeftActive(false); }}
-                    onMouseDown={() => setLeftActive(true)}
-                    onMouseUp={() => setLeftActive(false)}
-                    onMouseLeave={() => setLeftActive(false)}
-                >
-                    <span className="text-2xl">L</span>
-                </button>
-
-                <button
-                    className={`w-32 h-32 rounded-full border-2 transition-all duration-300 flex items-center justify-center backdrop-blur-sm outline-none
-                        ${rightActive ? 'bg-rose-500/30 border-rose-300 scale-95 shadow-[0_0_30px_rgba(244,63,94,0.5)]' : 'bg-white/5 border-white/20 scale-100'}`}
-                    onTouchStart={(e) => { e.preventDefault(); setRightActive(true); vibrate(20); }}
-                    onTouchEnd={(e) => { e.preventDefault(); setRightActive(false); }}
-                    onMouseDown={() => setRightActive(true)}
-                    onMouseUp={() => setRightActive(false)}
-                    onMouseLeave={() => setRightActive(false)}
-                >
-                    <span className="text-2xl">R</span>
-                </button>
-            </div>
-        </div>
-    );
-};
-
-// FASE 3: IL PASSO
-const PhaseThree = ({ onComplete }) => {
-    const [steps, setSteps] = useState(0);
-    const [lastFoot, setLastFoot] = useState(null); 
-    const [message, setMessage] = useState("Inizia a camminare");
-    
-    const GOAL = 40;
-
-    const handleStep = (foot) => {
-        if (foot === lastFoot) return; 
-
-        const newSteps = steps + 1;
-        setSteps(newSteps);
-        setLastFoot(foot);
-        vibrate(40); 
-
-        if (newSteps === 5) setMessage("Senti il ritmo");
-        if (newSteps === 15) setMessage("Attivazione vestibolare");
-        if (newSteps === 25) setMessage("Alzati in piedi");
-        if (newSteps === 35) setMessage("Quasi pronto");
-
-        if (newSteps >= GOAL) {
-            onComplete();
-        }
-    };
-
-    return (
-        <div className="h-full w-full flex flex-col relative bg-gradient-to-t from-rose-900 via-orange-800 to-yellow-700 text-white select-none touch-none">
-            <div className="absolute top-10 w-full text-center z-10 pointer-events-none">
-                <h2 className="text-2xl font-light mb-2">Fase 3: Il Passo</h2>
-                <p className="text-xl font-medium text-yellow-300 transition-all duration-300 transform scale-100">{message}</p>
-                <div className="mt-4 w-64 h-2 bg-black/30 rounded-full mx-auto overflow-hidden">
-                    <div 
-                        className="h-full bg-yellow-400 transition-all duration-200"
-                        style={{ width: `${(steps / GOAL) * 100}%` }}
-                    ></div>
-                </div>
-                <p className="mt-2 text-xs opacity-60">{steps} / {GOAL} Passi</p>
-            </div>
-
-            <div className="flex-1 flex flex-row">
-                <div 
-                    className="flex-1 border-r border-white/10 active:bg-white/10 transition-colors flex items-center justify-center relative overflow-hidden"
-                    onTouchStart={(e) => { e.preventDefault(); handleStep('left'); }}
-                    onMouseDown={() => handleStep('left')}
-                >
-                     <div className={`transition-transform duration-100 ${lastFoot === 'left' ? 'scale-90 opacity-100 text-yellow-200' : 'scale-100 opacity-30'} pointer-events-none`}>
-                        <Footprints size={80} className="transform scale-x-[-1]" />
-                        <p className="text-center mt-4 font-bold text-2xl">SINISTRA</p>
-                     </div>
-                     {lastFoot === 'left' && <div className="absolute w-full h-full bg-yellow-500/20 animate-pulse pointer-events-none"></div>}
-                </div>
-
-                <div 
-                    className="flex-1 active:bg-white/10 transition-colors flex items-center justify-center relative overflow-hidden"
-                    onTouchStart={(e) => { e.preventDefault(); handleStep('right'); }}
-                    onMouseDown={() => handleStep('right')}
-                >
-                     <div className={`transition-transform duration-100 ${lastFoot === 'right' ? 'scale-90 opacity-100 text-yellow-200' : 'scale-100 opacity-30'} pointer-events-none`}>
-                        <Footprints size={80} />
-                        <p className="text-center mt-4 font-bold text-2xl">DESTRA</p>
-                     </div>
-                     {lastFoot === 'right' && <div className="absolute w-full h-full bg-yellow-500/20 animate-pulse pointer-events-none"></div>}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// COMPLETAMENTO
-const Completion = () => {
-    return (
-        <div className="h-full w-full flex flex-col items-center justify-center bg-gradient-to-tr from-yellow-100 via-orange-100 to-sky-200 text-slate-800 p-8 animate-fade-in select-none">
-            <div className="bg-white/40 backdrop-blur-xl p-10 rounded-3xl shadow-xl text-center border border-white/60">
-                <div className="mb-6 flex justify-center">
-                    <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg animate-bounce">
-                        <CheckCircle color="white" className="w-10 h-10" />
-                    </div>
-                </div>
-                <h1 className="text-3xl font-bold mb-2 text-slate-900">Sei Attivo.</h1>
-                <p className="text-slate-600 mb-8 leading-relaxed">
-                    Hai hackerato la tua chimica.<br/>
-                    Sei passato dall'inerzia all'azione.<br/>
-                    La giornata è tua.
-                </p>
-                <button 
-                    onClick={() => window.location.reload()}
-                    className="px-8 py-3 bg-slate-900 text-white rounded-full font-semibold shadow-lg active:scale-95 transition-transform"
-                >
-                    Chiudi Rituale
-                </button>
-            </div>
-        </div>
-    );
-};
-
-// APP PRINCIPALE
-export default function App() {
-    const [phase, setPhase] = useState('intro');
-
-    if (phase === 'intro') {
-        return (
-            <div className="h-screen w-screen overflow-hidden font-['Outfit'] select-none">
-                <style>{`
-                    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@200;400;600&display=swap');
-                    
-                    @keyframes breathe {
-                        0%, 100% { transform: scale(1); opacity: 0.5; }
-                        50% { transform: scale(1.2); opacity: 0.8; }
-                    }
-                    .animate-breathe {
-                        animation: breathe 4s infinite ease-in-out;
-                    }
-                    /* Prevent pull-to-refresh on mobile */
-                    body { overscroll-behavior-y: none; }
-                `}</style>
-                <div 
-                    className="h-full w-full bg-black text-white flex flex-col items-center justify-center cursor-pointer select-none touch-none"
-                    onClick={() => {
-                        vibrate(50);
-                        setPhase(1);
-                    }}
-                >
-                    <h1 className="text-6xl font-thin tracking-tighter mb-4 bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 to-purple-400">
-                        AURORA
-                    </h1>
-                    <p className="text-gray-400 text-sm tracking-[0.3em] uppercase mb-12">Protocollo di Risveglio</p>
-                    <div className="animate-pulse">
-                        <span className="px-6 py-2 border border-white/20 rounded-full text-xs uppercase tracking-widest">
-                            Tocca per Iniziare
-                        </span>
-                    </div>
-                </div>
-            </div>
+        // ICONE SVG INTEGRATE
+        const SunIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
         );
-    }
+        const FootprintsIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 11 3.8 11 8c0 1.25-.51 2-1.25 2H10c-1 0-1 4-1 4"/><path d="M14.68 12.68c.17-2.73 1.63-6.01 4.64-6.01C21.19 6.67 22.82 8.47 22.82 12.67c0 1.25-.51 2-1.25 2h-.32c-1 0-1 4-1 4"/><path d="M6.5 13.51c-1.55.13-2.5 1.5-2.5 3.03v2.96c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5v-2.96c0-1.56-.99-2.93-2.5-3.03Z"/><path d="M18.32 18.18c-1.55.13-2.5 1.5-2.5 3.03v2.96c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5v-2.96c0-1.56-.99-2.93-2.5-3.03Z"/></svg>
+        );
+        const CheckCircleIcon = ({ className, color }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color || "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+        );
 
-    return (
-        <div className="h-screen w-screen overflow-hidden font-['Outfit'] select-none">
-            {/* Styles are persisted from the intro */}
-            <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@200;400;600&display=swap');
-                @keyframes breathe {
-                    0%, 100% { transform: scale(1); opacity: 0.5; }
-                    50% { transform: scale(1.2); opacity: 0.8; }
-                }
-                .animate-breathe { animation: breathe 4s infinite ease-in-out; }
-            `}</style>
+        const vibrate = (ms) => {
+            if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(ms);
+        };
+
+        // --- COMPONENTI ---
+        const PhaseOne = ({ onComplete }) => {
+            const [position, setPosition] = useState(0); 
+            const [isDragging, setIsDragging] = useState(false);
+            const currentY = useRef(0);
+            const requestRef = useRef();
+            const dragStartY = useRef(0);
+            const GRAVITY = 0.8; 
+            const DRAG_FACTOR = 0.15; 
             
-            {phase === 1 && <PhaseOne onComplete={() => setPhase(2)} />}
-            {phase === 2 && <PhaseTwo onComplete={() => setPhase(3)} />}
-            {phase === 3 && <PhaseThree onComplete={() => setPhase('complete')} />}
-            {phase === 'complete' && <Completion />}
-        </div>
-    );
-}
+            const animate = () => {
+                if (!isDragging && currentY.current > 0) {
+                    currentY.current = Math.max(0, currentY.current - GRAVITY);
+                    setPosition(currentY.current);
+                }
+                if (currentY.current >= 98) {
+                    vibrate([50, 50, 50]);
+                    onComplete();
+                    return; 
+                }
+                requestRef.current = requestAnimationFrame(animate);
+            };
+
+            useEffect(() => {
+                requestRef.current = requestAnimationFrame(animate);
+                return () => cancelAnimationFrame(requestRef.current);
+            }, [isDragging]);
+
+            const handleStart = (clientY) => {
+                setIsDragging(true);
+                dragStartY.current = clientY;
+                vibrate(10);
+            };
+            const handleMove = (clientY) => {
+                if (!isDragging) return;
+                const delta = dragStartY.current - clientY;
+                if (delta > 0) {
+                    const resistance = 1 + (currentY.current / 50); 
+                    const moveAmount = (delta * DRAG_FACTOR) / resistance;
+                    currentY.current = Math.min(100, currentY.current + moveAmount);
+                    setPosition(currentY.current);
+                    dragStartY.current = clientY;
+                }
+            };
+            const handleEnd = () => setIsDragging(false);
+
+            return (
+                <div className="h-full w-full flex flex-col items-center justify-between relative overflow-hidden bg-gradient-to-t from-slate-900 via-indigo-900 to-purple-900 text-white p-6 select-none"
+                    onTouchStart={(e) => handleStart(e.touches[0].clientY)}
+                    onTouchMove={(e) => handleMove(e.touches[0].clientY)}
+                    onTouchEnd={handleEnd}
+                    onMouseDown={(e) => handleStart(e.clientY)}
+                    onMouseMove={(e) => handleMove(e.clientY)}
+                    onMouseUp={handleEnd}
+                    onMouseLeave={handleEnd}>
+                    <div className="z-10 text-center mt-10 opacity-80 pointer-events-none">
+                        <h2 className="text-2xl font-light mb-2">Fase 1: L'Attrito</h2>
+                        <p className="text-sm font-extralight opacity-70">Trascina il peso dell'alba.<br/>Non lasciarlo cadere.</p>
+                    </div>
+                    <div className="absolute top-[15%] w-full h-1 bg-white/20 border-t border-white/10 z-0 pointer-events-none"></div>
+                    <div className="absolute top-[12%] text-xs text-white/40 uppercase tracking-widest pointer-events-none">Risveglio</div>
+                    <div className="absolute h-[80%] w-2 bg-white/5 rounded-full bottom-0 z-0 pointer-events-none"></div>
+                    <div style={{ bottom: `${position}%` }} className={`absolute w-32 h-32 rounded-full blur-sm transition-transform duration-75 z-20 pointer-events-none ${isDragging ? 'scale-110 shadow-[0_0_50px_rgba(255,200,100,0.4)]' : 'scale-100 shadow-[0_0_20px_rgba(255,100,50,0.2)]'}`}>
+                        <div className="w-full h-full rounded-full bg-gradient-to-tr from-orange-600 to-yellow-200 flex items-center justify-center">
+                            <SunIcon className="text-orange-600 w-12 h-12" />
+                        </div>
+                    </div>
+                    <div className="mb-10 text-xs opacity-30 uppercase tracking-widest pointer-events-none">{isDragging ? "Resisti..." : "Afferra il sole"}</div>
+                </div>
+            );
+        };
+
+        const PhaseTwo = ({ onComplete }) => {
+            const [progress, setProgress] = useState(0);
+            const [leftActive, setLeftActive] = useState(false);
+            const [rightActive, setRightActive] = useState(false);
+            const progressRef = useRef(0);
+            const intervalRef = useRef(null);
+
+            useEffect(() => {
+                if (leftActive && rightActive) {
+                    intervalRef.current = setInterval(() => {
+                        progressRef.current += 0.5;
+                        setProgress(progressRef.current);
+                        if (progressRef.current % 10 === 0) vibrate(10); 
+                        if (progressRef.current >= 100) {
+                            clearInterval(intervalRef.current);
+                            vibrate([100, 50, 100]);
+                            onComplete();
+                        }
+                    }, 20);
+                } else {
+                    if (intervalRef.current) clearInterval(intervalRef.current);
+                    intervalRef.current = setInterval(() => {
+                        if (progressRef.current > 0) {
+                            progressRef.current -= 1;
+                            setProgress(progressRef.current);
+                        } else {
+                            clearInterval(intervalRef.current);
+                        }
+                    }, 20);
+                }
+                return () => clearInterval(intervalRef.current);
+            }, [leftActive, rightActive]);
+
+            return (
+                <div className="h-full w-full flex flex-col items-center justify-center relative bg-gradient-to-t from-purple-900 via-fuchsia-900 to-pink-800 text-white select-none">
+                    <div className="absolute top-10 text-center z-10 pointer-events-none">
+                        <h2 className="text-2xl font-light mb-2">Fase 2: La Sincronia</h2>
+                        <p className="text-sm font-extralight opacity-70">Connetti gli emisferi.<br/>Premi entrambi i cerchi.</p>
+                    </div>
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
+                         <div className="w-48 h-48 rounded-full bg-white/5 animate-breathe blur-xl" style={{ animationDuration: '5s' }}></div>
+                         <div className="absolute text-2xl font-thin tracking-[0.2em] opacity-80">{Math.round(progress)}%</div>
+                    </div>
+                    <div className="w-full h-full flex flex-row items-end pb-20 justify-around px-4 z-20">
+                        <button className={`w-32 h-32 rounded-full border-2 transition-all duration-300 flex items-center justify-center backdrop-blur-sm outline-none ${leftActive ? 'bg-cyan-500/30 border-cyan-300 scale-95 shadow-[0_0_30px_rgba(34,211,238,0.5)]' : 'bg-white/5 border-white/20 scale-100'}`}
+                            onTouchStart={(e) => { e.preventDefault(); setLeftActive(true); vibrate(20); }}
+                            onTouchEnd={(e) => { e.preventDefault(); setLeftActive(false); }}
+                            onMouseDown={() => setLeftActive(true)}
+                            onMouseUp={() => setLeftActive(false)}
+                            onMouseLeave={() => setLeftActive(false)}>
+                            <span className="text-2xl">L</span>
+                        </button>
+                        <button className={`w-32 h-32 rounded-full border-2 transition-all duration-300 flex items-center justify-center backdrop-blur-sm outline-none ${rightActive ? 'bg-rose-500/30 border-rose-300 scale-95 shadow-[0_0_30px_rgba(244,63,94,0.5)]' : 'bg-white/5 border-white/20 scale-100'}`}
+                            onTouchStart={(e) => { e.preventDefault(); setRightActive(true); vibrate(20); }}
+                            onTouchEnd={(e) => { e.preventDefault(); setRightActive(false); }}
+                            onMouseDown={() => setRightActive(true)}
+                            onMouseUp={() => setRightActive(false)}
+                            onMouseLeave={() => setRightActive(false)}>
+                            <span className="text-2xl">R</span>
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        const PhaseThree = ({ onComplete }) => {
+            const [steps, setSteps] = useState(0);
+            const [lastFoot, setLastFoot] = useState(null); 
+            const [message, setMessage] = useState("Inizia a camminare");
+            const GOAL = 40;
+
+            const handleStep = (foot) => {
+                if (foot === lastFoot) return; 
+                const newSteps = steps + 1;
+                setSteps(newSteps);
+                setLastFoot(foot);
+                vibrate(40); 
+                if (newSteps === 5) setMessage("Senti il ritmo");
+                if (newSteps === 15) setMessage("Attivazione vestibolare");
+                if (newSteps === 25) setMessage("Alzati in piedi");
+                if (newSteps === 35) setMessage("Quasi pronto");
+                if (newSteps >= GOAL) onComplete();
+            };
+
+            return (
+                <div className="h-full w-full flex flex-col relative bg-gradient-to-t from-rose-900 via-orange-800 to-yellow-700 text-white select-none">
+                    <div className="absolute top-10 w-full text-center z-10 pointer-events-none">
+                        <h2 className="text-2xl font-light mb-2">Fase 3: Il Passo</h2>
+                        <p className="text-xl font-medium text-yellow-300 transition-all duration-300 transform scale-100">{message}</p>
+                        <div className="mt-4 w-64 h-2 bg-black/30 rounded-full mx-auto overflow-hidden">
+                            <div className="h-full bg-yellow-400 transition-all duration-200" style={{ width: `${(steps / GOAL) * 100}%` }}></div>
+                        </div>
+                        <p className="mt-2 text-xs opacity-60">{steps} / {GOAL} Passi</p>
+                    </div>
+                    <div className="flex-1 flex flex-row">
+                        <div className="flex-1 border-r border-white/10 active:bg-white/10 transition-colors flex items-center justify-center relative overflow-hidden"
+                            onTouchStart={(e) => { e.preventDefault(); handleStep('left'); }}
+                            onMouseDown={() => handleStep('left')}>
+                             <div className={`transition-transform duration-100 ${lastFoot === 'left' ? 'scale-90 opacity-100 text-yellow-200' : 'scale-100 opacity-30'} pointer-events-none`}>
+                                <FootprintsIcon className="w-20 h-20 transform scale-x-[-1]" />
+                                <p className="text-center mt-4 font-bold text-2xl">SINISTRA</p>
+                             </div>
+                             {lastFoot === 'left' && <div className="absolute w-full h-full bg-yellow-500/20 animate-pulse pointer-events-none"></div>}
+                        </div>
+                        <div className="flex-1 active:bg-white/10 transition-colors flex items-center justify-center relative overflow-hidden"
+                            onTouchStart={(e) => { e.preventDefault(); handleStep('right'); }}
+                            onMouseDown={() => handleStep('right')}>
+                             <div className={`transition-transform duration-100 ${lastFoot === 'right' ? 'scale-90 opacity-100 text-yellow-200' : 'scale-100 opacity-30'} pointer-events-none`}>
+                                <FootprintsIcon className="w-20 h-20" />
+                                <p className="text-center mt-4 font-bold text-2xl">DESTRA</p>
+                             </div>
+                             {lastFoot === 'right' && <div className="absolute w-full h-full bg-yellow-500/20 animate-pulse pointer-events-none"></div>}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Completion = () => {
+            return (
+                <div className="h-full w-full flex flex-col items-center justify-center bg-gradient-to-tr from-yellow-100 via-orange-100 to-sky-200 text-slate-800 p-8 animate-fade-in select-none">
+                    <div className="bg-white/40 backdrop-blur-xl p-10 rounded-3xl shadow-xl text-center border border-white/60">
+                        <div className="mb-6 flex justify-center">
+                            <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg animate-bounce">
+                                <CheckCircleIcon color="white" className="w-10 h-10" />
+                            </div>
+                        </div>
+                        <h1 className="text-3xl font-bold mb-2 text-slate-900">Sei Attivo.</h1>
+                        <p className="text-slate-600 mb-8 leading-relaxed">Hai hackerato la tua chimica.<br/>Sei passato dall'inerzia all'azione.<br/>La giornata è tua.</p>
+                        <button onClick={() => window.location.reload()} className="px-8 py-3 bg-slate-900 text-white rounded-full font-semibold shadow-lg active:scale-95 transition-transform">Chiudi Rituale</button>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [phase, setPhase] = useState('intro');
+
+            if (phase === 'intro') {
+                return (
+                    <div className="h-screen w-screen bg-black text-white flex flex-col items-center justify-center cursor-pointer select-none touch-none"
+                        onClick={() => { vibrate(50); setPhase(1); }}>
+                        <h1 className="text-6xl font-thin tracking-tighter mb-4 bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 to-purple-400">AURORA</h1>
+                        <p className="text-gray-400 text-sm tracking-[0.3em] uppercase mb-12">Protocollo di Risveglio</p>
+                        <div className="animate-pulse">
+                            <span className="px-6 py-2 border border-white/20 rounded-full text-xs uppercase tracking-widest">Tocca per Iniziare</span>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="h-screen w-screen overflow-hidden">
+                    {phase === 1 && <PhaseOne onComplete={() => setPhase(2)} />}
+                    {phase === 2 && <PhaseTwo onComplete={() => setPhase(3)} />}
+                    {phase === 3 && <PhaseThree onComplete={() => setPhase('complete')} />}
+                    {phase === 'complete' && <Completion />}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
