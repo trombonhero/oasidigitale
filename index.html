@@ -1,379 +1,377 @@
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Aurora - Ritual</title>
-    
-    <!-- React & Tailwind -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+import React, { useState, useEffect, useRef } from 'react';
+import { Sun, Footprints, Brain, CheckCircle, ArrowUp, Activity } from 'lucide-react';
 
-    <style>
-        html, body {
-            height: 100%;
-            width: 100%;
-            overflow: hidden;
-            background-color: #0f172a;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-            font-family: 'Helvetica Neue', sans-serif;
-            overscroll-behavior: none;
+// --- UTILS ---
+const vibrate = (ms) => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(ms);
+    }
+};
+
+// --- COMPONENTS ---
+
+// PHASE 1: THE FRICTION (Il Sole Pesante)
+const PhaseOne = ({ onComplete }) => {
+    const [position, setPosition] = useState(0); // 0 = bottom, 100 = top
+    const [isDragging, setIsDragging] = useState(false);
+    const sunRef = useRef(null);
+    const containerRef = useRef(null);
+    const dragStartY = useRef(0);
+    const currentY = useRef(0);
+    const requestRef = useRef();
+    
+    // Physics constants
+    const GRAVITY = 0.8; 
+    const DRAG_FACTOR = 0.15; // Resistance feeling
+    
+    const animate = () => {
+        if (!isDragging && currentY.current > 0) {
+            // Gravity effect: sun falls if not held
+            currentY.current = Math.max(0, currentY.current - GRAVITY);
+            setPosition(currentY.current);
         }
         
-        @keyframes breathe {
-            0%, 100% { transform: scale(1); opacity: 0.5; }
-            50% { transform: scale(1.5); opacity: 1; }
+        if (currentY.current >= 98) {
+            vibrate([50, 50, 50]);
+            onComplete();
+            return; 
         }
-    </style>
-</head>
-<body>
-    <div id="root"></div>
+        
+        requestRef.current = requestAnimationFrame(animate);
+    };
 
-    <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+    useEffect(() => {
+        requestRef.current = requestAnimationFrame(animate);
+        return () => cancelAnimationFrame(requestRef.current);
+    }, [isDragging]);
 
-        // --- ICONE SVG (Giallo Sole pieno per massima visibilità) ---
-        const Sun = ({ size = 24, className = "" }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-                <circle cx="12" cy="12" r="5" fill="#FDB813" stroke="none" />
-                <path stroke="#FDB813" strokeWidth="2" strokeLinecap="round" d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-            </svg>
-        );
+    const handleStart = (clientY) => {
+        setIsDragging(true);
+        dragStartY.current = clientY;
+        vibrate(10);
+    };
 
-        const Footprints = ({ color = "currentColor", size = 24, className = "" }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                <path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 11 3.8 11 8c0 2.85-1.27 5.1-2.3 5.84-.83.6-1.67.4-2.5 1.03C5.3 15.62 5.06 16.5 5 17.5v1.96c0 1.14-.54 1.74-1.5 1.54C2.54 20.82 2 19.8 2 18.5"></path>
-                <path d="M14 16v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C8.63 2 7 3.8 7 8c0 2.85 1.27 5.1 2.3 5.84.83.6 1.67.4 2.5 1.03.9 1.11 1.14 1.99 1.2 2.99v1.96c0 1.14.54 1.74 1.5 1.54 1.96-.18 2.5-1.2 2.5-2.5"></path>
-                <path d="M20 18.5c0 1.3-.54 2.32-1.5 2.54-.96.2-1.5-.4-1.5-1.54v-1.96c.06-1 .3-1.88 1.2-2.99.83-.63 1.67-.43 2.5-1.03 1.03-.74 2.3-2.99 2.3-5.84 0-4.2-1.63-6-3.5-6-3.01 0-4.47 3.28-4.5 6-.03 2.5 1 3.5 1 5.62v2.38"></path>
-            </svg>
-        );
+    const handleMove = (clientY) => {
+        if (!isDragging) return;
+        
+        const delta = dragStartY.current - clientY;
+        
+        // Only allow upward movement to add to position
+        if (delta > 0) {
+            // Add resistance: easier at bottom, harder at top
+            const resistance = 1 + (currentY.current / 50); 
+            const moveAmount = (delta * DRAG_FACTOR) / resistance;
+            
+            currentY.current = Math.min(100, currentY.current + moveAmount);
+            setPosition(currentY.current);
+            
+            // Reset start to current for continuous delta calculation
+            dragStartY.current = clientY;
+        }
+    };
 
-        const Brain = ({ color = "currentColor", size = 24, className = "" }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"></path>
-                <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"></path>
-                <path d="M12 18a5 5 0 0 0 9-3 4.5 4.5 0 0 0-4.5-4.5c-1.33 0-2.54.54-3.41 1.41L12 14"></path>
-                <path d="M12 18a5 5 0 0 1-9-3 4.5 4.5 0 0 1 4.5-4.5c1.33 0 2.54.54 3.41 1.41L12 14"></path>
-            </svg>
-        );
+    const handleEnd = () => {
+        setIsDragging(false);
+    };
 
-        const CheckCircle = ({ color = "currentColor", size = 24, className = "" }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-            </svg>
-        );
+    // Touch events
+    const onTouchStart = (e) => handleStart(e.touches[0].clientY);
+    const onTouchMove = (e) => handleMove(e.touches[0].clientY);
+    
+    // Mouse events for desktop testing
+    const onMouseDown = (e) => handleStart(e.clientY);
+    const onMouseMove = (e) => handleMove(e.clientY);
 
-        const ArrowUp = ({ color = "currentColor", size = 24, className = "" }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                <line x1="12" y1="19" x2="12" y2="5"></line>
-                <polyline points="5 12 12 5 19 12"></polyline>
-            </svg>
-        );
+    return (
+        <div 
+            className="h-full w-full flex flex-col items-center justify-between relative overflow-hidden bg-gradient-to-t from-slate-900 via-indigo-900 to-purple-900 text-white p-6 select-none touch-none"
+            ref={containerRef}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={handleEnd}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={handleEnd}
+            onMouseLeave={handleEnd}
+        >
+            <div className="z-10 text-center mt-10 opacity-80 pointer-events-none">
+                <h2 className="text-2xl font-light mb-2">Fase 1: L'Attrito</h2>
+                <p className="text-sm font-extralight opacity-70">Trascina il peso dell'alba.<br/>Non lasciarlo cadere.</p>
+            </div>
 
-        // --- FASE 1: L'ALBA (SCROLL DAL BASSO) ---
-        const SunrisePhase = ({ onComplete }) => {
-            const [progress, setProgress] = useState(0);
-            const [isDragging, setIsDragging] = useState(false);
-            const startY = useRef(0);
-            const currentY = useRef(0);
+            {/* Target Line */}
+            <div className="absolute top-[15%] w-full h-1 bg-white/20 border-t border-white/10 z-0 pointer-events-none"></div>
+            <div className="absolute top-[12%] text-xs text-white/40 uppercase tracking-widest pointer-events-none">Risveglio</div>
 
-            // Gravità: se lasci, il sole torna giù
-            useEffect(() => {
-                let interval;
-                if (!isDragging && progress > 0 && progress < 100) {
-                    interval = setInterval(() => {
-                        setProgress(p => Math.max(0, p - 3)); 
-                    }, 16);
-                }
-                return () => clearInterval(interval);
-            }, [isDragging, progress]);
+            {/* The Track */}
+            <div className="absolute h-[80%] w-2 bg-white/5 rounded-full bottom-0 z-0 pointer-events-none"></div>
 
-            const handleStart = (y) => {
-                setIsDragging(true);
-                startY.current = y;
-                currentY.current = progress;
-            };
-
-            const handleMove = (y) => {
-                if (!isDragging) return;
-                const deltaY = startY.current - y;
-                
-                // CORREZIONE: Usiamo quasi tutta l'altezza dello schermo (85%) per la corsa
-                // Questo assicura che il movimento del dito sia naturale e ampio
-                const screenH = window.innerHeight * 0.85; 
-                
-                // Calcoliamo la percentuale di progresso
-                const dragPercent = (deltaY / screenH) * 100;
-                let newProgress = Math.min(100, Math.max(0, currentY.current + dragPercent));
-                
-                setProgress(newProgress);
-
-                if (newProgress >= 100) {
-                    setIsDragging(false);
-                    if (window.navigator.vibrate) window.navigator.vibrate(200);
-                    setTimeout(onComplete, 800);
-                }
-            };
-
-            const handleEnd = () => {
-                setIsDragging(false);
-            };
-
-            // Colori cielo (Blu notte -> Blu alba)
-            const skyColor = `hsl(${220 + (progress * 0.4)}, ${60 + (progress * 0.2)}%, ${10 + (progress * 0.4)}%)`;
-            const sunColor = `hsl(${10 + (progress * 0.5)}, 100%, ${50 + (progress * 0.2)}%)`;
-
-            return (
-                <div 
-                    className="h-full w-full relative flex flex-col items-center overflow-hidden transition-colors duration-100"
-                    style={{ backgroundColor: skyColor, touchAction: 'none' }} 
-                    onTouchStart={(e) => handleStart(e.touches[0].clientY)}
-                    onTouchMove={(e) => handleMove(e.touches[0].clientY)}
-                    onTouchEnd={handleEnd}
-                    onMouseDown={(e) => handleStart(e.clientY)}
-                    onMouseMove={(e) => handleMove(e.clientY)}
-                    onMouseUp={handleEnd}
-                >
-                    {/* OBIETTIVO IN ALTO (85% di altezza) */}
-                    <div 
-                        className="absolute w-[100px] h-[100px] rounded-full border-2 border-dashed border-white/40 flex items-center justify-center animate-pulse z-0 transform translate-y-1/2"
-                        style={{ bottom: '85%' }} 
-                    >
-                         {progress < 90 && (
-                            <ArrowUp className="text-white/30 animate-bounce" size={32} />
-                         )}
-                    </div>
-
-                    <div className="absolute top-[15%] text-white/50 text-sm uppercase tracking-[0.3em] font-light pointer-events-none transition-opacity duration-500"
-                        style={{ opacity: isDragging ? 0 : 1 }}>
-                        Risveglia il sole
-                    </div>
-
-                    {/* IL SOLE - POSIZIONE CORRETTA: Parte da 0% (bordo basso) e sale a 85% */}
-                    <div 
-                        className="rounded-full absolute flex items-center justify-center z-10 pointer-events-none transform translate-y-1/2"
-                        style={{
-                            width: '100px',
-                            height: '100px',
-                            // CORREZIONE FONDAMENTALE: 0% è il fondo, 85% è la cima.
-                            bottom: `${progress * 0.85}%`,
-                            transition: isDragging ? 'none' : 'bottom 0.5s ease-out'
-                        }}
-                    >
-                        {/* Alone */}
-                        <div 
-                            className="absolute rounded-full blur-xl"
-                            style={{
-                                width: '150px',
-                                height: '150px',
-                                backgroundColor: sunColor,
-                                opacity: 0.5 + (progress / 200)
-                            }}
-                        />
-                        
-                        {/* Corpo Sole */}
-                        <div className="relative z-10 bg-white/10 backdrop-blur-sm rounded-full p-4 border border-white/20">
-                             <Sun size={48} />
-                        </div>
-                    </div>
+            {/* The Sun */}
+            <div 
+                ref={sunRef}
+                style={{ bottom: `${position}%` }}
+                className={`absolute w-32 h-32 rounded-full blur-sm transition-transform duration-75 z-20 pointer-events-none
+                            ${isDragging ? 'scale-110 shadow-[0_0_50px_rgba(255,200,100,0.4)]' : 'scale-100 shadow-[0_0_20px_rgba(255,100,50,0.2)]'}`}
+            >
+                <div className="w-full h-full rounded-full bg-gradient-to-tr from-orange-600 to-yellow-200 flex items-center justify-center">
+                    <Sun className="text-orange-600 w-12 h-12" />
                 </div>
-            );
-        };
+            </div>
 
-        // --- FASE 2: SINCRONIA ---
-        const SyncPhase = ({ onComplete }) => {
-            const [leftActive, setLeftActive] = useState(false);
-            const [rightActive, setRightActive] = useState(false);
-            const [charge, setCharge] = useState(0);
+            <div className="mb-10 text-xs opacity-30 uppercase tracking-widest pointer-events-none">
+                {isDragging ? "Resisti..." : "Afferra il sole"}
+            </div>
+        </div>
+    );
+};
 
-            useEffect(() => {
-                let interval;
-                if (leftActive && rightActive) {
-                    interval = setInterval(() => {
-                        setCharge(c => {
-                            if (c >= 100) {
-                                clearInterval(interval);
-                                return 100;
-                            }
-                            return c + 1;
-                        });
-                        if (window.navigator.vibrate && Math.random() > 0.8) window.navigator.vibrate(10);
-                    }, 30);
+// PHASE 2: THE SYNC (Bilateralità)
+const PhaseTwo = ({ onComplete }) => {
+    const [progress, setProgress] = useState(0);
+    const [leftActive, setLeftActive] = useState(false);
+    const [rightActive, setRightActive] = useState(false);
+    const progressRef = useRef(0);
+    const intervalRef = useRef(null);
+
+    // Check sync status
+    useEffect(() => {
+        if (leftActive && rightActive) {
+            // Both pressed: Fill progress
+            intervalRef.current = setInterval(() => {
+                progressRef.current += 0.5;
+                setProgress(progressRef.current);
+                
+                if (progressRef.current % 10 === 0) vibrate(10); // Subtle tick
+
+                if (progressRef.current >= 100) {
+                    clearInterval(intervalRef.current);
+                    vibrate([100, 50, 100]);
+                    onComplete();
+                }
+            }, 20);
+        } else {
+            // Not both pressed: Decay progress slowly
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            intervalRef.current = setInterval(() => {
+                if (progressRef.current > 0) {
+                    progressRef.current -= 1; // Decay faster than gain is frustrating, so decay balanced
+                    setProgress(progressRef.current);
                 } else {
-                    interval = setInterval(() => {
-                        setCharge(c => Math.max(0, c - 2));
-                    }, 20);
+                    clearInterval(intervalRef.current);
                 }
+            }, 20);
+        }
 
-                if (charge >= 100) {
-                    if (window.navigator.vibrate) window.navigator.vibrate([100, 50, 100]);
-                    setTimeout(onComplete, 500);
-                }
+        return () => clearInterval(intervalRef.current);
+    }, [leftActive, rightActive]);
 
-                return () => clearInterval(interval);
-            }, [leftActive, rightActive, charge]);
+    return (
+        <div className="h-full w-full flex flex-col items-center justify-center relative bg-gradient-to-t from-purple-900 via-fuchsia-900 to-pink-800 text-white select-none touch-none">
+            <div className="absolute top-10 text-center z-10 pointer-events-none">
+                <h2 className="text-2xl font-light mb-2">Fase 2: La Sincronia</h2>
+                <p className="text-sm font-extralight opacity-70">Connetti gli emisferi.<br/>Premi entrambi i cerchi.</p>
+            </div>
 
-            return (
-                <div className="h-full w-full bg-slate-900 flex flex-col items-center justify-center relative select-none">
-                    <div className="absolute top-10 text-slate-500 text-sm uppercase tracking-[0.3em] font-light pointer-events-none">
-                        Connetti gli emisferi
+            {/* Central Breathing Guide */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
+                 <div 
+                    className="w-48 h-48 rounded-full bg-white/5 animate-breathe blur-xl"
+                    style={{ animationDuration: '5s' }}
+                 ></div>
+                 <div className="absolute text-2xl font-thin tracking-[0.2em] opacity-80">
+                    {Math.round(progress)}%
+                 </div>
+            </div>
+
+            <div className="w-full h-full flex flex-row items-end pb-20 justify-around px-4 z-20">
+                {/* Left Hemisphere Button */}
+                <button
+                    className={`w-32 h-32 rounded-full border-2 transition-all duration-300 flex items-center justify-center backdrop-blur-sm outline-none
+                        ${leftActive ? 'bg-cyan-500/30 border-cyan-300 scale-95 shadow-[0_0_30px_rgba(34,211,238,0.5)]' : 'bg-white/5 border-white/20 scale-100'}`}
+                    onTouchStart={(e) => { e.preventDefault(); setLeftActive(true); vibrate(20); }}
+                    onTouchEnd={(e) => { e.preventDefault(); setLeftActive(false); }}
+                    onMouseDown={() => setLeftActive(true)}
+                    onMouseUp={() => setLeftActive(false)}
+                    onMouseLeave={() => setLeftActive(false)}
+                >
+                    <span className="text-2xl">L</span>
+                </button>
+
+                {/* Right Hemisphere Button */}
+                <button
+                    className={`w-32 h-32 rounded-full border-2 transition-all duration-300 flex items-center justify-center backdrop-blur-sm outline-none
+                        ${rightActive ? 'bg-rose-500/30 border-rose-300 scale-95 shadow-[0_0_30px_rgba(244,63,94,0.5)]' : 'bg-white/5 border-white/20 scale-100'}`}
+                    onTouchStart={(e) => { e.preventDefault(); setRightActive(true); vibrate(20); }}
+                    onTouchEnd={(e) => { e.preventDefault(); setRightActive(false); }}
+                    onMouseDown={() => setRightActive(true)}
+                    onMouseUp={() => setRightActive(false)}
+                    onMouseLeave={() => setRightActive(false)}
+                >
+                    <span className="text-2xl">R</span>
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// PHASE 3: THE STEP (Il Passo)
+const PhaseThree = ({ onComplete }) => {
+    const [steps, setSteps] = useState(0);
+    const [lastFoot, setLastFoot] = useState(null); // 'left' or 'right'
+    const [message, setMessage] = useState("Inizia a camminare");
+    
+    const GOAL = 40;
+
+    const handleStep = (foot) => {
+        if (foot === lastFoot) return; // Must alternate
+
+        const newSteps = steps + 1;
+        setSteps(newSteps);
+        setLastFoot(foot);
+        vibrate(40); // Harder vibration for "impact"
+
+        // Dynamic messages
+        if (newSteps === 5) setMessage("Senti il ritmo");
+        if (newSteps === 15) setMessage("Attivazione vestibolare");
+        if (newSteps === 25) setMessage("Alzati in piedi");
+        if (newSteps === 35) setMessage("Quasi pronto");
+
+        if (newSteps >= GOAL) {
+            onComplete();
+        }
+    };
+
+    return (
+        <div className="h-full w-full flex flex-col relative bg-gradient-to-t from-rose-900 via-orange-800 to-yellow-700 text-white select-none touch-none">
+            <div className="absolute top-10 w-full text-center z-10 pointer-events-none">
+                <h2 className="text-2xl font-light mb-2">Fase 3: Il Passo</h2>
+                <p className="text-xl font-medium text-yellow-300 transition-all duration-300 transform scale-100">{message}</p>
+                <div className="mt-4 w-64 h-2 bg-black/30 rounded-full mx-auto overflow-hidden">
+                    <div 
+                        className="h-full bg-yellow-400 transition-all duration-200"
+                        style={{ width: `${(steps / GOAL) * 100}%` }}
+                    ></div>
+                </div>
+                <p className="mt-2 text-xs opacity-60">{steps} / {GOAL} Passi</p>
+            </div>
+
+            <div className="flex-1 flex flex-row">
+                {/* Left Foot Zone */}
+                <div 
+                    className="flex-1 border-r border-white/10 active:bg-white/10 transition-colors flex items-center justify-center relative overflow-hidden"
+                    onTouchStart={(e) => { e.preventDefault(); handleStep('left'); }}
+                    onMouseDown={() => handleStep('left')}
+                >
+                     <div className={`transition-transform duration-100 ${lastFoot === 'left' ? 'scale-90 opacity-100 text-yellow-200' : 'scale-100 opacity-30'} pointer-events-none`}>
+                        <Footprints size={80} className="transform scale-x-[-1]" /> {/* Mirror for left foot */}
+                        <p className="text-center mt-4 font-bold text-2xl">SINISTRA</p>
+                     </div>
+                     {/* Ripple effect simulation */}
+                     {lastFoot === 'left' && <div className="absolute w-full h-full bg-yellow-500/20 animate-pulse pointer-events-none"></div>}
+                </div>
+
+                {/* Right Foot Zone */}
+                <div 
+                    className="flex-1 active:bg-white/10 transition-colors flex items-center justify-center relative overflow-hidden"
+                    onTouchStart={(e) => { e.preventDefault(); handleStep('right'); }}
+                    onMouseDown={() => handleStep('right')}
+                >
+                     <div className={`transition-transform duration-100 ${lastFoot === 'right' ? 'scale-90 opacity-100 text-yellow-200' : 'scale-100 opacity-30'} pointer-events-none`}>
+                        <Footprints size={80} />
+                        <p className="text-center mt-4 font-bold text-2xl">DESTRA</p>
+                     </div>
+                     {lastFoot === 'right' && <div className="absolute w-full h-full bg-yellow-500/20 animate-pulse pointer-events-none"></div>}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// COMPLETION SCREEN
+const Completion = () => {
+    return (
+        <div className="h-full w-full flex flex-col items-center justify-center bg-gradient-to-tr from-yellow-100 via-orange-100 to-sky-200 text-slate-800 p-8 animate-fade-in select-none">
+            <div className="bg-white/40 backdrop-blur-xl p-10 rounded-3xl shadow-xl text-center border border-white/60">
+                <div className="mb-6 flex justify-center">
+                    <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg animate-bounce">
+                        <CheckCircle color="white" size={40} />
                     </div>
+                </div>
+                <h1 className="text-3xl font-bold mb-2 text-slate-900">Sei Attivo.</h1>
+                <p className="text-slate-600 mb-8 leading-relaxed">
+                    Hai hackerato la tua chimica.<br/>
+                    Sei passato dall'inerzia all'azione.<br/>
+                    La giornata è tua.
+                </p>
+                <button 
+                    onClick={() => window.location.reload()}
+                    className="px-8 py-3 bg-slate-900 text-white rounded-full font-semibold shadow-lg active:scale-95 transition-transform"
+                >
+                    Chiudi Rituale
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// MAIN APP ORCHESTRATOR
+export default function App() {
+    const [phase, setPhase] = useState('intro'); // intro, 1, 2, 3, complete
+
+    // Intro screen needed to initialize audio context or just get first interaction for vibration
+    if (phase === 'intro') {
+        return (
+            <div className="h-screen w-screen overflow-hidden font-['Outfit']">
+                <style>{`
+                    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@200;400;600&display=swap');
                     
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
-                         <div 
-                            className="rounded-full transition-all duration-300 border-2 border-teal-500/30 flex items-center justify-center"
-                            style={{ 
-                                width: `${100 + charge * 2}px`, 
-                                height: `${100 + charge * 2}px`,
-                                opacity: 0.5 + (charge / 200),
-                                backgroundColor: `rgba(20, 184, 166, ${charge / 200})`
-                            }}
-                         >
-                            <Brain size={32} className={`text-teal-200 transition-opacity ${charge > 0 ? 'opacity-100' : 'opacity-30'}`} />
-                         </div>
+                    @keyframes breathe {
+                        0%, 100% { transform: scale(1); opacity: 0.5; }
+                        50% { transform: scale(1.2); opacity: 0.8; }
+                    }
+                    .animate-breathe {
+                        animation: breathe 4s infinite ease-in-out;
+                    }
+                    /* Prevent pull-to-refresh on mobile */
+                    body { overscroll-behavior-y: none; }
+                `}</style>
+                <div 
+                    className="h-full w-full bg-black text-white flex flex-col items-center justify-center cursor-pointer select-none touch-none"
+                    onClick={() => {
+                        vibrate(50);
+                        setPhase(1);
+                    }}
+                >
+                    <h1 className="text-6xl font-thin tracking-tighter mb-4 bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 to-purple-400">
+                        AURORA
+                    </h1>
+                    <p className="text-gray-400 text-sm tracking-[0.3em] uppercase mb-12">Protocollo di Risveglio</p>
+                    <div className="animate-pulse">
+                        <span className="px-6 py-2 border border-white/20 rounded-full text-xs uppercase tracking-widest">
+                            Tocca per Iniziare
+                        </span>
                     </div>
-
-                    <div className="w-full h-full flex flex-row">
-                        <div 
-                            className={`flex-1 flex items-center justify-center transition-colors duration-500 ${leftActive ? 'bg-teal-900/20' : 'bg-transparent'}`}
-                            onTouchStart={(e) => { e.preventDefault(); setLeftActive(true); }}
-                            onTouchEnd={(e) => { e.preventDefault(); setLeftActive(false); }}
-                            onMouseDown={() => setLeftActive(true)}
-                            onMouseUp={() => setLeftActive(false)}
-                            style={{ touchAction: 'none' }}
-                        >
-                            <div className={`w-20 h-20 rounded-full border-2 border-slate-700 flex items-center justify-center transition-all pointer-events-none ${leftActive ? 'scale-90 bg-teal-500 border-teal-400' : ''}`}>
-                                <span className="text-slate-500 text-xs">SINISTRA</span>
-                            </div>
-                        </div>
-
-                        <div 
-                            className={`flex-1 flex items-center justify-center transition-colors duration-500 ${rightActive ? 'bg-teal-900/20' : 'bg-transparent'}`}
-                            onTouchStart={(e) => { e.preventDefault(); setRightActive(true); }}
-                            onTouchEnd={(e) => { e.preventDefault(); setRightActive(false); }}
-                            onMouseDown={() => setRightActive(true)}
-                            onMouseUp={() => setRightActive(false)}
-                            style={{ touchAction: 'none' }}
-                        >
-                             <div className={`w-20 h-20 rounded-full border-2 border-slate-700 flex items-center justify-center transition-all pointer-events-none ${rightActive ? 'scale-90 bg-teal-500 border-teal-400' : ''}`}>
-                                <span className="text-slate-500 text-xs">DESTRA</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <p className="absolute bottom-20 text-slate-500 text-xs font-mono pointer-events-none">
-                        Premi entrambi i lati per sincronizzare
-                    </p>
                 </div>
-            );
-        };
+            </div>
+        );
+    }
 
-        // --- FASE 3: IL PASSO (RITMO MOTORIO) ---
-        const WalkPhase = ({ onComplete }) => {
-            const [steps, setSteps] = useState(0);
-            const [lastStep, setLastStep] = useState(null); 
-            const GOAL = 40; 
-
-            const handleStep = (side) => {
-                if (side === lastStep) return; 
-                
-                setLastStep(side);
-                setSteps(s => s + 1);
-                if (window.navigator.vibrate) window.navigator.vibrate(40);
-
-                if (steps + 1 >= GOAL) {
-                    setTimeout(onComplete, 500);
+    return (
+        <div className="h-screen w-screen overflow-hidden font-['Outfit'] select-none">
+            {/* Styles are persisted from the intro, but we ensure they are here too */}
+             <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@200;400;600&display=swap');
+                @keyframes breathe {
+                    0%, 100% { transform: scale(1); opacity: 0.5; }
+                    50% { transform: scale(1.2); opacity: 0.8; }
                 }
-            };
-
-            const progress = (steps / GOAL) * 100;
-
-            return (
-                <div className="h-full w-full bg-gradient-to-b from-slate-900 to-indigo-950 flex flex-col relative select-none">
-                     <div className="absolute top-10 w-full text-center text-indigo-300 text-sm uppercase tracking-[0.3em] font-light pointer-events-none">
-                        Attiva il corpo
-                    </div>
-
-                    <div className="w-full h-2 bg-slate-800 fixed top-0 left-0">
-                        <div 
-                            className="h-full bg-indigo-500 transition-all duration-200"
-                            style={{ width: `${progress}%` }}
-                        />
-                    </div>
-
-                    <div className="flex-1 flex flex-col items-center justify-center space-y-8 z-10 pointer-events-none">
-                        <div className="text-6xl font-black text-indigo-500/30">
-                            {steps}
-                        </div>
-                        <div className="text-center px-10 text-indigo-200/60 text-sm">
-                            Alterna Sinistra e Destra ritmicamente.
-                        </div>
-                    </div>
-
-                    <div className="h-1/2 w-full flex">
-                        <button 
-                            className="flex-1 bg-slate-800/50 active:bg-indigo-600 active:scale-[0.98] transition-all duration-75 border-r border-slate-700 flex items-center justify-center touch-manipulation"
-                            onMouseDown={() => handleStep('L')}
-                            onTouchStart={(e) => { e.preventDefault(); handleStep('L'); }}
-                            style={{ touchAction: 'manipulation' }}
-                        >
-                            <Footprints className="transform rotate-90 text-slate-500 pointer-events-none" size={40} />
-                        </button>
-                        <button 
-                            className="flex-1 bg-slate-800/50 active:bg-indigo-600 active:scale-[0.98] transition-all duration-75 flex items-center justify-center touch-manipulation"
-                            onMouseDown={() => handleStep('R')}
-                            onTouchStart={(e) => { e.preventDefault(); handleStep('R'); }}
-                            style={{ touchAction: 'manipulation' }}
-                        >
-                            <Footprints className="transform -rotate-90 text-slate-500 pointer-events-none" size={40} />
-                        </button>
-                    </div>
-                </div>
-            );
-        };
-
-        // --- SCHERMATA FINALE ---
-        const DonePhase = () => {
-            return (
-                <div className="h-full w-full bg-white flex flex-col items-center justify-center animate-[fadeIn_1s_ease-out]">
-                    <div className="mb-6 rounded-full bg-green-100 p-6 animate-[bounce_2s_infinite]">
-                        <CheckCircle className="text-green-600" size={48} />
-                    </div>
-                    <h1 className="text-3xl font-bold text-slate-800 mb-2">Buongiorno.</h1>
-                    <p className="text-slate-500 text-center max-w-xs leading-relaxed">
-                        Mente attiva. Corpo sveglio.<br/>
-                        Sei pronto per il mondo reale.
-                    </p>
-                    <button 
-                        onClick={() => window.location.reload()}
-                        className="mt-12 text-xs text-slate-300 uppercase tracking-widest hover:text-slate-500 transition-colors"
-                    >
-                        Ricomincia il ciclo
-                    </button>
-                </div>
-            );
-        };
-
-        const App = () => {
-            const [phase, setPhase] = useState(0); 
-            const nextPhase = () => setPhase(p => p + 1);
-
-            return (
-                <div className="w-full h-full overflow-hidden">
-                    {phase === 0 && <SunrisePhase onComplete={nextPhase} />}
-                    {phase === 1 && <SyncPhase onComplete={nextPhase} />}
-                    {phase === 2 && <WalkPhase onComplete={nextPhase} />}
-                    {phase === 3 && <DonePhase />}
-                </div>
-            );
-        };
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+                .animate-breathe { animation: breathe 4s infinite ease-in-out; }
+            `}</style>
+            
+            {phase === 1 && <PhaseOne onComplete={() => setPhase(2)} />}
+            {phase === 2 && <PhaseTwo onComplete={() => setPhase(3)} />}
+            {phase === 3 && <PhaseThree onComplete={() => setPhase('complete')} />}
+            {phase === 'complete' && <Completion />}
+        </div>
+    );
+}
