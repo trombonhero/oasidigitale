@@ -3,47 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Oasi Digitale</title>
+    <title>Aurora - Ritual</title>
     
-    <!-- React & ReactDOM -->
+    <!-- React & Tailwind -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
-        /* Reset mobile per un comportamento "app-like" */
         html, body {
             height: 100%;
             width: 100%;
-            overflow: hidden; /* Impedisce lo scroll elastico del body su iOS */
-            overscroll-behavior: none;
+            overflow: hidden;
+            background-color: #0f172a;
+            user-select: none;
             -webkit-tap-highlight-color: transparent;
-            user-select: none; /* Impedisce la selezione del testo */
-            background-color: #f8fafc; /* Slate-50 fallback */
+            font-family: 'Helvetica Neue', sans-serif;
         }
         
-        #root {
-            height: 100%;
-            width: 100%;
+        /* Animazioni personalizzate */
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.5); opacity: 1; }
+        }
+        
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            100% { transform: scale(2); opacity: 0; }
         }
 
-        /* Utility per nascondere la scrollbar mantenendo la funzionalità */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
+        .animate-breathe {
+            animation: breathe 4s infinite ease-in-out;
         }
 
-        /* Supporto per Safe Area (iPhone X+) */
-        .pb-safe {
-            padding-bottom: env(safe-area-inset-bottom);
+        .touch-manipulation {
+            touch-action: manipulation;
         }
     </style>
 </head>
@@ -53,340 +48,345 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // --- ICONE SVG ---
-        const Wind = ({ size = 24, className = "" }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>
+        // --- ICONE SVG (Inline per stabilità) ---
+        const Sun = ({ color = "currentColor", size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
         );
 
-        const Eraser = ({ size = 24, className = "" }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
+        const Footprints = ({ color = "currentColor", size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 11 3.8 11 8c0 2.85-1.27 5.1-2.3 5.84-.83.6-1.67.4-2.5 1.03C5.3 15.62 5.06 16.5 5 17.5v1.96c0 1.14-.54 1.74-1.5 1.54C2.54 20.82 2 19.8 2 18.5"></path>
+                <path d="M14 16v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C8.63 2 7 3.8 7 8c0 2.85 1.27 5.1 2.3 5.84.83.6 1.67.4 2.5 1.03.9 1.11 1.14 1.99 1.2 2.99v1.96c0 1.14.54 1.74 1.5 1.54 1.96-.18 2.5-1.2 2.5-2.5"></path>
+                <path d="M20 18.5c0 1.3-.54 2.32-1.5 2.54-.96.2-1.5-.4-1.5-1.54v-1.96c.06-1 .3-1.88 1.2-2.99.83-.63 1.67-.43 2.5-1.03 1.03-.74 2.3-2.99 2.3-5.84 0-4.2-1.63-6-3.5-6-3.01 0-4.47 3.28-4.5 6-.03 2.5 1 3.5 1 5.62v2.38"></path>
+            </svg>
         );
 
-        const Activity = ({ size = 24, className = "" }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        const Brain = ({ color = "currentColor", size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"></path>
+                <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"></path>
+                <path d="M12 18a5 5 0 0 0 9-3 4.5 4.5 0 0 0-4.5-4.5c-1.33 0-2.54.54-3.41 1.41L12 14"></path>
+                <path d="M12 18a5 5 0 0 1-9-3 4.5 4.5 0 0 1 4.5-4.5c1.33 0 2.54.54 3.41 1.41L12 14"></path>
+            </svg>
         );
 
-        const RefreshCw = ({ size = 24, className = "" }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+        const CheckCircle = ({ color = "currentColor", size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
         );
 
-        const Sparkles = ({ size = 24, className = "" }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M9 5H5"/><path d="M5 7v2"/><path d="M3 7h2"/></svg>
+        const ArrowUp = ({ color = "currentColor", size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <line x1="12" y1="19" x2="12" y2="5"></line>
+                <polyline points="5 12 12 5 19 12"></polyline>
+            </svg>
         );
 
-        // --- COMPONENTI DEL GIOCO ---
-
-        // 1. MODALITÀ FLUSSO (Scroll Infinito)
-        // FIX MOBILE: Ora gestisce il proprio container scrollabile invece di dipendere da window
-        const FlowMode = () => {
-            const [scrollSpeed, setScrollSpeed] = useState(0);
-            const [hue, setHue] = useState(200);
+        // --- FASE 1: L'ALBA (SCROLL RESISTIVO) ---
+        const SunrisePhase = ({ onComplete }) => {
+            const [progress, setProgress] = useState(0);
+            const [isDragging, setIsDragging] = useState(false);
             const containerRef = useRef(null);
-            const lastScrollY = useRef(0);
-            const scrollTimeout = useRef(null);
+            const startY = useRef(0);
+            const currentY = useRef(0);
 
+            // Logica di "gravità": se lasci, il sole scende
             useEffect(() => {
-                const container = containerRef.current;
-                if (!container) return;
+                let interval;
+                if (!isDragging && progress > 0 && progress < 100) {
+                    interval = setInterval(() => {
+                        setProgress(p => Math.max(0, p - 2)); // Scende veloce
+                    }, 16);
+                }
+                return () => clearInterval(interval);
+            }, [isDragging, progress]);
 
-                const handleScroll = () => {
-                    const currentScrollY = container.scrollTop;
-                    const speed = Math.abs(currentScrollY - lastScrollY.current);
-                    
-                    // Limita la velocità massima visiva
-                    setScrollSpeed(Math.min(speed, 50));
-                    
-                    // Cambia colore in base alla posizione
-                    setHue((prev) => (prev + 0.5) % 360);
-                    
-                    lastScrollY.current = currentScrollY;
-
-                    // Reset velocità quando ci si ferma
-                    if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
-                    scrollTimeout.current = setTimeout(() => {
-                        setScrollSpeed(0);
-                    }, 100);
-                };
-
-                container.addEventListener('scroll', handleScroll, { passive: true });
-                return () => {
-                    container.removeEventListener('scroll', handleScroll);
-                    if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
-                };
-            }, []);
-
-            return (
-                <div 
-                    ref={containerRef}
-                    className="h-full w-full overflow-y-auto overflow-x-hidden relative scroll-smooth no-scrollbar"
-                    style={{ WebkitOverflowScrolling: 'touch' }} // Importante per iOS momentum scroll
-                >
-                    {/* Contenitore altissimo per permettere lo scroll */}
-                    <div 
-                        className="min-h-[500vh] w-full transition-colors duration-500 ease-out pb-32"
-                        style={{ backgroundColor: `hsl(${hue}, 70%, ${90 - (scrollSpeed * 0.5)}%)` }}
-                    >
-                        {/* Particella centrale reattiva */}
-                        <div className="fixed inset-0 flex items-center justify-center pointer-events-none pb-20">
-                            <div 
-                                className="rounded-full blur-3xl transition-all duration-300 opacity-60 mix-blend-multiply"
-                                style={{ 
-                                    width: `${200 + scrollSpeed * 10}px`, 
-                                    height: `${200 + scrollSpeed * 10}px`,
-                                    backgroundColor: `hsl(${(hue + 180) % 360}, 80%, 60%)`,
-                                    transform: `scale(${1 + scrollSpeed / 50})`
-                                }}
-                            />
-                        </div>
-
-                        {/* Istruzioni / Stato */}
-                        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none opacity-50 mix-blend-overlay w-full px-4 pb-20">
-                            <div className="flex justify-center">
-                                <Wind size={48 + scrollSpeed} className="mb-4 text-slate-800 transition-all duration-300" />
-                            </div>
-                            <p className="text-xl font-light text-slate-800 tracking-widest uppercase">
-                                {scrollSpeed > 0 ? "Flusso Attivo" : "Scorri..."}
-                            </p>
-                        </div>
-
-                        {/* Indicatori di profondità sparsi lungo la pagina */}
-                        {Array.from({ length: 50 }).map((_, i) => (
-                            <div 
-                                key={i}
-                                className="absolute left-1/2 transform -translate-x-1/2 w-1 h-32 rounded-full opacity-20"
-                                style={{ 
-                                    top: `${i * 10}vh`,
-                                    backgroundColor: `hsl(${(hue + i * 10) % 360}, 60%, 40%)`
-                                }} 
-                            />
-                        ))}
-                    </div>
-                </div>
-            );
-        };
-
-        // 2. MODALITÀ TABULA RASA (Clean)
-        const CleanMode = () => {
-            const canvasRef = useRef(null);
-            const [percentCleaned, setPercentCleaned] = useState(0);
-            const [isDrawing, setIsDrawing] = useState(false);
-            
-            useEffect(() => {
-                const canvas = canvasRef.current;
-                const ctx = canvas.getContext('2d');
-                
-                const resizeCanvas = () => {
-                    canvas.width = window.innerWidth;
-                    canvas.height = window.innerHeight; // Full height
-                    resetCanvas(ctx, canvas.width, canvas.height);
-                };
-
-                resizeCanvas();
-                window.addEventListener('resize', resizeCanvas);
-                
-                return () => {
-                    window.removeEventListener('resize', resizeCanvas);
-                };
-            }, []);
-
-            const resetCanvas = (ctx, w, h) => {
-                ctx.fillStyle = '#334155';
-                ctx.fillRect(0, 0, w, h);
-                ctx.globalCompositeOperation = 'destination-out';
-                setPercentCleaned(0);
+            const handleStart = (y) => {
+                setIsDragging(true);
+                startY.current = y;
+                currentY.current = progress; // Salva progresso attuale come base
             };
 
-            const handleStart = (e) => {
-                setIsDrawing(true);
-                handleMove(e);
+            const handleMove = (y) => {
+                if (!isDragging) return;
+                const deltaY = startY.current - y; // Positivo se vai verso l'alto
+                const screenH = window.innerHeight * 0.7; // 70% dello schermo è la corsa
+                
+                // Calcola nuovo progresso basato sul delta
+                // Aggiungiamo "resistenza" dividendo il delta
+                const dragPercent = (deltaY / screenH) * 100;
+                
+                // La formula deve sommare il movimento al progresso salvato all'inizio del drag
+                let newProgress = Math.min(100, Math.max(0, currentY.current + dragPercent));
+                
+                setProgress(newProgress);
+
+                if (newProgress >= 100) {
+                    setIsDragging(false);
+                    if (window.navigator.vibrate) window.navigator.vibrate(200);
+                    setTimeout(onComplete, 500);
+                }
             };
 
             const handleEnd = () => {
-                setIsDrawing(false);
-                checkCleanPercentage();
+                setIsDragging(false);
+                currentY.current = progress; // Salva dove sei arrivato
             };
 
-            const handleMove = (e) => {
-                if (!isDrawing) return;
-                
-                // Previene comportamenti di default del browser (es. scroll)
-                // Ma non chiamare preventDefault() su eventi passivi se non necessario.
-                // In questo caso gestiamo il blocco tramite CSS 'touch-action: none'
-                
-                const canvas = canvasRef.current;
-                const ctx = canvas.getContext('2d');
-                const rect = canvas.getBoundingClientRect();
-                
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                
-                const x = clientX - rect.left;
-                const y = clientY - rect.top;
-
-                ctx.beginPath();
-                ctx.arc(x, y, 40, 0, Math.PI * 2);
-                ctx.fill();
-            };
-
-            const checkCleanPercentage = () => {
-                const canvas = canvasRef.current;
-                const ctx = canvas.getContext('2d');
-                const w = canvas.width;
-                const h = canvas.height;
-                // Ottimizzazione: campiona solo un'area centrale o ridotta per performance su mobile
-                // Qui manteniamo il campionamento semplice ma con passo largo
-                const imgData = ctx.getImageData(0, 0, w, h);
-                const pixels = imgData.data;
-                let transparentPixels = 0;
-                const sampleRate = 50; // Aumentato per performance su mobile
-
-                for (let i = 0; i < pixels.length; i += 4 * sampleRate) {
-                    if (pixels[i + 3] < 128) {
-                        transparentPixels++;
-                    }
-                }
-                
-                const totalSampled = pixels.length / (4 * sampleRate);
-                const percent = Math.round((transparentPixels / totalSampled) * 100);
-                setPercentCleaned(percent);
-
-                if (percent > 90) {
-                   setTimeout(() => resetCanvas(ctx, w, h), 800);
-                }
-            };
+            // Colore del cielo che cambia col progresso (da Notte a Alba)
+            const skyColor = `hsl(${220 + (progress * 0.4)}, ${60 + (progress * 0.2)}%, ${10 + (progress * 0.4)}%)`;
+            const sunColor = `hsl(${10 + (progress * 0.5)}, 100%, ${50 + (progress * 0.2)}%)`;
 
             return (
-                <div className="relative w-full h-full flex flex-col bg-gradient-to-br from-rose-100 to-teal-100 overflow-hidden">
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 pb-20">
-                        <h2 className="text-4xl font-bold text-teal-600 opacity-50 tracking-tighter animate-pulse">
-                            RESPIRA
-                        </h2>
+                <div 
+                    className="h-full w-full relative flex flex-col items-center justify-end pb-20 overflow-hidden transition-colors duration-100"
+                    style={{ backgroundColor: skyColor }}
+                    onTouchStart={(e) => handleStart(e.touches[0].clientY)}
+                    onTouchMove={(e) => handleMove(e.touches[0].clientY)}
+                    onTouchEnd={handleEnd}
+                    onMouseDown={(e) => handleStart(e.clientY)}
+                    onMouseMove={(e) => handleMove(e.clientY)}
+                    onMouseUp={handleEnd}
+                >
+                    <div className="absolute top-10 text-white/50 text-sm uppercase tracking-[0.3em] font-light">
+                        Risveglia il sole
                     </div>
-                    
-                    {/* Canvas con touch-action: none per gestire il tocco senza scrollare la pagina */}
-                    <canvas
-                        ref={canvasRef}
-                        className="touch-none cursor-crosshair z-10 w-full h-full"
-                        style={{ touchAction: 'none' }}
-                        onMouseDown={handleStart}
-                        onMouseUp={handleEnd}
-                        onMouseMove={handleMove}
-                        onTouchStart={handleStart}
-                        onTouchEnd={handleEnd}
-                        onTouchMove={handleMove}
-                    />
-                    
-                    <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-white/80 px-4 py-2 rounded-full shadow-sm z-20 pointer-events-none mb-safe">
-                        <span className="text-slate-600 font-mono text-sm">{percentCleaned}% Pulito</span>
+
+                    {/* Guida visiva */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className={`flex flex-col items-center transition-opacity duration-500 ${isDragging ? 'opacity-0' : 'opacity-30'}`}>
+                            <ArrowUp className="text-white mb-2 animate-bounce" />
+                            <span className="text-white text-xs">Trascina su lentamente</span>
+                        </div>
                     </div>
-                    
-                    <button 
-                        onClick={() => {
-                            const canvas = canvasRef.current;
-                            resetCanvas(canvas.getContext('2d'), canvas.width, canvas.height);
+
+                    {/* Il Sole */}
+                    <div 
+                        className="rounded-full blur-xl absolute"
+                        style={{
+                            width: '150px',
+                            height: '150px',
+                            backgroundColor: sunColor,
+                            bottom: `${10 + (progress * 0.6)}%`, // Si muove dal 10% al 70% dell'altezza
+                            boxShadow: `0 0 ${progress}px ${sunColor}`,
+                            transition: isDragging ? 'none' : 'bottom 0.5s ease-out'
                         }}
-                        className="absolute top-4 right-4 bg-white/50 p-2 rounded-full hover:bg-white transition-colors z-20 active:scale-90 duration-200"
+                    ></div>
+
+                    <div 
+                        className="rounded-full absolute flex items-center justify-center z-10 bg-white/10 backdrop-blur-sm border border-white/20"
+                        style={{
+                            width: '80px',
+                            height: '80px',
+                            bottom: `${10 + (progress * 0.6)}%`,
+                            transition: isDragging ? 'none' : 'bottom 0.5s ease-out'
+                        }}
                     >
-                        <RefreshCw size={24} className="text-slate-700" />
-                    </button>
+                         <Sun color="white" size={32} />
+                    </div>
                 </div>
             );
         };
 
-        // 3. MODALITÀ SINCRO (Rhythm)
-        const RhythmMode = () => {
-            const [streak, setStreak] = useState(0);
-            const [history, setHistory] = useState([]);
-            const [message, setMessage] = useState("Cerca l'armonia");
+        // --- FASE 2: SINCRONIA (BILATERALITÀ) ---
+        const SyncPhase = ({ onComplete }) => {
+            const [leftActive, setLeftActive] = useState(false);
+            const [rightActive, setRightActive] = useState(false);
+            const [charge, setCharge] = useState(0);
 
-            const handleClick = () => {
-                const isHarmony = Math.random() > 0.45;
-                
-                if (isHarmony) {
-                    setStreak(s => s + 1);
-                    setMessage("Armonia...");
-                    setHistory(h => [...h.slice(-10), true]);
-                    if (window.navigator.vibrate) window.navigator.vibrate(50);
+            useEffect(() => {
+                let interval;
+                if (leftActive && rightActive) {
+                    // Carica solo se entrambi premuti
+                    interval = setInterval(() => {
+                        setCharge(c => {
+                            if (c >= 100) {
+                                clearInterval(interval);
+                                return 100;
+                            }
+                            return c + 1; // 1.6 secondi circa per caricare
+                        });
+                        if (window.navigator.vibrate && Math.random() > 0.8) window.navigator.vibrate(10);
+                    }, 30);
                 } else {
-                    setStreak(0);
-                    setMessage("Dissonanza - Riprova");
-                    setHistory(h => [...h.slice(-10), false]);
-                    if (window.navigator.vibrate) window.navigator.vibrate([30, 50, 30]);
+                    // Scarica se lasci
+                    interval = setInterval(() => {
+                        setCharge(c => Math.max(0, c - 2));
+                    }, 20);
                 }
-            };
+
+                if (charge >= 100) {
+                    if (window.navigator.vibrate) window.navigator.vibrate([100, 50, 100]);
+                    setTimeout(onComplete, 500);
+                }
+
+                return () => clearInterval(interval);
+            }, [leftActive, rightActive, charge]);
 
             return (
-                <div className="flex flex-col items-center justify-center h-full bg-slate-50 select-none p-6 overflow-hidden pb-24">
-                    <div className="mb-12 text-center">
-                        <h3 className="text-6xl font-thin text-slate-800 mb-2 transition-all duration-300 transform" key={streak}>{streak}</h3>
-                        <p className="text-slate-400 uppercase tracking-widest text-xs">Sequenza Attuale</p>
-                    </div>
-
-                    <button
-                        onClick={handleClick}
-                        className="w-48 h-48 rounded-full bg-white shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] active:shadow-inner active:scale-95 transition-all duration-100 flex items-center justify-center group touch-manipulation"
-                        style={{ WebkitTapHighlightColor: 'transparent' }}
-                    >
-                        <div className={`w-40 h-40 rounded-full border-2 ${streak > 0 ? 'border-teal-200 bg-teal-50' : 'border-slate-100 bg-slate-50'} flex items-center justify-center transition-colors duration-300`}>
-                            <Activity className={`${streak > 0 ? 'text-teal-400' : 'text-slate-300'} group-hover:scale-110 transition-transform duration-300`} size={32} />
-                        </div>
-                    </button>
-
-                    <div className="mt-12 h-8 flex gap-2 items-center">
-                        {history.map((success, i) => (
-                            <div 
-                                key={i} 
-                                className={`w-2 h-2 rounded-full transition-all duration-500 ${success ? 'bg-teal-400 scale-110' : 'bg-rose-300 scale-75'}`}
-                            />
-                        ))}
+                <div className="h-full w-full bg-slate-900 flex flex-col items-center justify-center relative">
+                    <div className="absolute top-10 text-slate-500 text-sm uppercase tracking-[0.3em] font-light">
+                        Connetti gli emisferi
                     </div>
                     
-                    <p className="mt-8 text-slate-400 font-light italic animate-pulse h-6">
-                        {message}
+                    {/* Indicatore Centrale */}
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                         <div 
+                            className="rounded-full transition-all duration-300 border-2 border-teal-500/30 flex items-center justify-center"
+                            style={{ 
+                                width: `${100 + charge * 2}px`, 
+                                height: `${100 + charge * 2}px`,
+                                opacity: 0.5 + (charge / 200),
+                                backgroundColor: `rgba(20, 184, 166, ${charge / 200})`
+                            }}
+                         >
+                            <Brain size={32} className={`text-teal-200 transition-opacity ${charge > 0 ? 'opacity-100' : 'opacity-30'}`} />
+                         </div>
+                    </div>
+
+                    <div className="w-full h-full flex flex-row">
+                        {/* Area Sinistra */}
+                        <div 
+                            className={`flex-1 flex items-center justify-center transition-colors duration-500 ${leftActive ? 'bg-teal-900/20' : 'bg-transparent'}`}
+                            onTouchStart={() => setLeftActive(true)}
+                            onTouchEnd={() => setLeftActive(false)}
+                            onMouseDown={() => setLeftActive(true)}
+                            onMouseUp={() => setLeftActive(false)}
+                        >
+                            <div className={`w-20 h-20 rounded-full border-2 border-slate-700 flex items-center justify-center transition-all ${leftActive ? 'scale-90 bg-teal-500 border-teal-400' : ''}`}>
+                                <span className="text-slate-500 text-xs">SINISTRA</span>
+                            </div>
+                        </div>
+
+                        {/* Area Destra */}
+                        <div 
+                            className={`flex-1 flex items-center justify-center transition-colors duration-500 ${rightActive ? 'bg-teal-900/20' : 'bg-transparent'}`}
+                            onTouchStart={() => setRightActive(true)}
+                            onTouchEnd={() => setRightActive(false)}
+                            onMouseDown={() => setRightActive(true)}
+                            onMouseUp={() => setRightActive(false)}
+                        >
+                             <div className={`w-20 h-20 rounded-full border-2 border-slate-700 flex items-center justify-center transition-all ${rightActive ? 'scale-90 bg-teal-500 border-teal-400' : ''}`}>
+                                <span className="text-slate-500 text-xs">DESTRA</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <p className="absolute bottom-20 text-slate-500 text-xs font-mono">
+                        Premi entrambi i lati per sincronizzare
                     </p>
                 </div>
             );
         };
 
-        // --- APP PRINCIPALE ---
-        const App = () => {
-            const [activeTab, setActiveTab] = useState('flow');
+        // --- FASE 3: IL PASSO (RITMO MOTORIO) ---
+        const WalkPhase = ({ onComplete }) => {
+            const [steps, setSteps] = useState(0);
+            const [lastStep, setLastStep] = useState(null); // 'L' or 'R'
+            const GOAL = 40; // 40 passi alternati
+
+            const handleStep = (side) => {
+                if (side === lastStep) return; // Impedisce di spammare lo stesso lato
+                
+                setLastStep(side);
+                setSteps(s => s + 1);
+                if (window.navigator.vibrate) window.navigator.vibrate(40);
+
+                if (steps + 1 >= GOAL) {
+                    setTimeout(onComplete, 500);
+                }
+            };
+
+            const progress = (steps / GOAL) * 100;
 
             return (
-                <div className="absolute inset-0 w-full h-full bg-slate-50 text-slate-800 font-sans flex flex-col">
-                    {/* AREA DI GIOCO - Occupa tutto lo spazio meno la nav bar */}
-                    <div className="flex-1 w-full h-full relative overflow-hidden pb-20">
-                        {activeTab === 'flow' && <FlowMode />}
-                        {activeTab === 'clean' && <CleanMode />}
-                        {activeTab === 'rhythm' && <RhythmMode />}
+                <div className="h-full w-full bg-gradient-to-b from-slate-900 to-indigo-950 flex flex-col relative">
+                     <div className="absolute top-10 w-full text-center text-indigo-300 text-sm uppercase tracking-[0.3em] font-light">
+                        Attiva il corpo
                     </div>
 
-                    {/* BARRA DI NAVIGAZIONE - Fissa in basso */}
-                    <div className="fixed bottom-0 left-0 right-0 h-20 bg-white/95 backdrop-blur-md border-t border-slate-100 flex items-center justify-around px-6 z-50 shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.05)] pb-safe">
-                        <button 
-                            onClick={() => setActiveTab('flow')}
-                            className={`flex flex-col items-center space-y-1 p-2 rounded-xl transition-all duration-300 ${activeTab === 'flow' ? 'text-blue-500 bg-blue-50' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                            <Wind size={24} />
-                            <span className="text-[10px] uppercase font-bold tracking-wider">Flusso</span>
-                        </button>
+                    {/* Progress Bar visuale */}
+                    <div className="w-full h-2 bg-slate-800 fixed top-0 left-0">
+                        <div 
+                            className="h-full bg-indigo-500 transition-all duration-200"
+                            style={{ width: `${progress}%` }}
+                        />
+                    </div>
 
-                        <button 
-                            onClick={() => setActiveTab('clean')}
-                            className={`flex flex-col items-center space-y-1 p-2 rounded-xl transition-all duration-300 ${activeTab === 'clean' ? 'text-teal-500 bg-teal-50' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                            <Eraser size={24} />
-                            <span className="text-[10px] uppercase font-bold tracking-wider">Tabula</span>
-                        </button>
+                    <div className="flex-1 flex flex-col items-center justify-center space-y-8 z-10">
+                        <div className="text-6xl font-black text-indigo-500/30">
+                            {steps}
+                        </div>
+                        <div className="text-center px-10 text-indigo-200/60 text-sm">
+                            Alterna Sinistra e Destra ritmicamente per caricare la giornata.
+                        </div>
+                    </div>
 
+                    {/* Bottoni "Piedi" */}
+                    <div className="h-1/2 w-full flex">
                         <button 
-                            onClick={() => setActiveTab('rhythm')}
-                            className={`flex flex-col items-center space-y-1 p-2 rounded-xl transition-all duration-300 ${activeTab === 'rhythm' ? 'text-rose-500 bg-rose-50' : 'text-slate-400 hover:text-slate-600'}`}
+                            className="flex-1 bg-slate-800/50 active:bg-indigo-600 active:scale-[0.98] transition-all duration-75 border-r border-slate-700 flex items-center justify-center"
+                            onClick={() => handleStep('L')}
                         >
-                            <Sparkles size={24} />
-                            <span className="text-[10px] uppercase font-bold tracking-wider">Sincro</span>
+                            <Footprints className="transform rotate-90 text-slate-500" size={40} />
+                        </button>
+                        <button 
+                            className="flex-1 bg-slate-800/50 active:bg-indigo-600 active:scale-[0.98] transition-all duration-75 flex items-center justify-center"
+                            onClick={() => handleStep('R')}
+                        >
+                            <Footprints className="transform -rotate-90 text-slate-500" size={40} />
                         </button>
                     </div>
+                </div>
+            );
+        };
+
+        // --- SCHERMATA FINALE ---
+        const DonePhase = () => {
+            return (
+                <div className="h-full w-full bg-white flex flex-col items-center justify-center animate-[fadeIn_1s_ease-out]">
+                    <div className="mb-6 rounded-full bg-green-100 p-6 animate-[bounce_2s_infinite]">
+                        <CheckCircle className="text-green-600" size={48} />
+                    </div>
+                    <h1 className="text-3xl font-bold text-slate-800 mb-2">Buongiorno.</h1>
+                    <p className="text-slate-500 text-center max-w-xs leading-relaxed">
+                        Mente attiva. Corpo sveglio.<br/>
+                        Sei pronto per il mondo reale.
+                    </p>
+                    <button 
+                        onClick={() => window.location.reload()}
+                        className="mt-12 text-xs text-slate-300 uppercase tracking-widest hover:text-slate-500 transition-colors"
+                    >
+                        Ricomincia il ciclo
+                    </button>
+                </div>
+            );
+        };
+
+        // --- APP CONTROLLER ---
+        const App = () => {
+            const [phase, setPhase] = useState(0); // 0: Sun, 1: Sync, 2: Walk, 3: Done
+
+            const nextPhase = () => setPhase(p => p + 1);
+
+            return (
+                <div className="w-full h-full overflow-hidden">
+                    {phase === 0 && <SunrisePhase onComplete={nextPhase} />}
+                    {phase === 1 && <SyncPhase onComplete={nextPhase} />}
+                    {phase === 2 && <WalkPhase onComplete={nextPhase} />}
+                    {phase === 3 && <DonePhase />}
                 </div>
             );
         };
